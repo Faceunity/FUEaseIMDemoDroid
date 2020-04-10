@@ -101,7 +101,7 @@ public class CameraRenderer implements Camera.PreviewCallback {
                 mSkippedFrames = 3;
                 openCamera(mCameraFacing);
                 startPreview();
-                mFURenderer.onCameraChange(mCameraFacing, mCameraOrientation);
+                mFURenderer.onCameraChanged(mCameraFacing, mCameraOrientation);
             }
         });
     }
