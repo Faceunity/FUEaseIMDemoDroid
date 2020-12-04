@@ -1,258 +1,212 @@
-/**
- * Copyright (C) 2016 Hyphenate Inc. All rights reserved.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *     http://www.apache.org/licenses/LICENSE-2.0
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
 package com.hyphenate.easeui.ui;
 
-import android.app.ProgressDialog;
+import android.app.AlertDialog;
+import android.content.DialogInterface;
 import android.os.Bundle;
-import android.os.Handler;
-import android.text.Editable;
-import android.text.TextWatcher;
+import android.view.ContextMenu;
 import android.view.LayoutInflater;
-import android.view.MotionEvent;
+import android.view.MenuItem;
 import android.view.View;
-import android.view.View.OnClickListener;
-import android.view.View.OnTouchListener;
 import android.view.ViewGroup;
-import android.widget.AdapterView;
-import android.widget.AdapterView.OnItemClickListener;
-import android.widget.EditText;
-import android.widget.FrameLayout;
-import android.widget.ImageButton;
-import android.widget.ListView;
+import android.view.ViewStub;
+import android.widget.TextView;
 import android.widget.Toast;
 
-import com.hyphenate.EMConnectionListener;
-import com.hyphenate.EMError;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.recyclerview.widget.ConcatAdapter;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
+
+import com.hyphenate.EMCallBack;
 import com.hyphenate.chat.EMClient;
 import com.hyphenate.easeui.R;
+import com.hyphenate.easeui.adapter.EaseContactListAdapter;
 import com.hyphenate.easeui.domain.EaseUser;
-import com.hyphenate.easeui.utils.EaseCommonUtils;
-import com.hyphenate.easeui.widget.EaseContactList;
+import com.hyphenate.easeui.interfaces.OnEaseCallBack;
+import com.hyphenate.easeui.interfaces.OnItemClickListener;
+import com.hyphenate.easeui.manager.SidebarPresenter;
+import com.hyphenate.easeui.ui.base.EaseBaseFragment;
+import com.hyphenate.easeui.widget.EaseRecyclerView;
+import com.hyphenate.easeui.widget.EaseSidebar;
 import com.hyphenate.exceptions.HyphenateException;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
 
 /**
- * contact list
- * 
+ * 联系人列表，提供最基本的联系人展示
  */
-public class EaseContactListFragment extends EaseBaseFragment {
-    private static final String TAG = "EaseContactListFragment";
-    protected List<EaseUser> contactList;
-    protected ListView listView;
-    protected boolean hidden;
-    protected ImageButton clearSearch;
-    protected EditText query;
-    protected Handler handler = new Handler();
-    protected EaseUser toBeProcessUser;
-    protected String toBeProcessUsername;
-    protected EaseContactList contactListLayout;
-    protected boolean isConflict;
-    protected FrameLayout contentContainer;
-    
-    private Map<String, EaseUser> contactsMap;
+public class EaseContactListFragment extends EaseBaseFragment implements SwipeRefreshLayout.OnRefreshListener, OnItemClickListener {
+    public ViewStub viewStub;
+    public SwipeRefreshLayout srlContactRefresh;
+    public EaseRecyclerView rvContactList;
+    public EaseSidebar sideBarFriend;
+    public TextView floatingHeader;
+    public EaseContactListAdapter adapter;
+    public SidebarPresenter presenter;
 
-    
+    @Nullable
     @Override
-    public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
-        return inflater.inflate(R.layout.ease_fragment_contact_list, container, false);
+    public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
+        return inflater.inflate(getLayoutId(), null);
+    }
+
+    public int getLayoutId() {
+        return R.layout.ease_fragment_contact_list;
     }
 
     @Override
-    public void onActivityCreated(Bundle savedInstanceState) {
-    	//to avoid crash when open app after long time stay in background after user logged into another device
-        if(savedInstanceState != null && savedInstanceState.getBoolean("isConflict", false))
-            return;
+    public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
+        super.onViewCreated(view, savedInstanceState);
+        initArgument();
+        initView(savedInstanceState);
+        initListener();
+    }
+
+    @Override
+    public void onActivityCreated(@Nullable Bundle savedInstanceState) {
         super.onActivityCreated(savedInstanceState);
+        initData();
     }
 
     @Override
-    protected void initView() {
-        contentContainer = (FrameLayout) getView().findViewById(R.id.content_container);
-        
-        contactListLayout = (EaseContactList) getView().findViewById(R.id.contact_list);        
-        listView = contactListLayout.getListView();
-        
-        //search
-        query = (EditText) getView().findViewById(R.id.query);
-        clearSearch = (ImageButton) getView().findViewById(R.id.search_clear);
+    public void onCreateContextMenu(@NonNull ContextMenu menu, @NonNull View v, @Nullable ContextMenu.ContextMenuInfo menuInfo) {
+        super.onCreateContextMenu(menu, v, menuInfo);
+        menu.add(1, R.id.action_friend_delete, 1, getString(R.string.ease_friends_delete_the_contact));
+        onChildCreateContextMenu(menu, v, menuInfo);
     }
 
     @Override
-    protected void setUpView() {
-        EMClient.getInstance().addConnectionListener(connectionListener);
-        
-        contactList = new ArrayList<EaseUser>();
-        getContactList();
-        //init list
-        contactListLayout.init(contactList);
-        
-        if(listItemClickListener != null){
-            listView.setOnItemClickListener(new OnItemClickListener() {
-    
-                @Override
-                public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-                    EaseUser user = (EaseUser)listView.getItemAtPosition(position);
-                    listItemClickListener.onListItemClicked(user);
-                }
-            });
+    public boolean onContextItemSelected(@NonNull MenuItem item) {
+        int position = ((EaseRecyclerView.RecyclerViewContextMenuInfo) item.getMenuInfo()).position - rvContactList.getHeadersCount();
+        EaseUser user = adapter.getItem(position);
+        if(item.getItemId() == R.id.action_friend_delete) {
+            showDeleteDialog(user);
         }
-        
-        query.addTextChangedListener(new TextWatcher() {
-            public void onTextChanged(CharSequence s, int start, int before, int count) {
-                contactListLayout.filter(s);
-                if (s.length() > 0) {
-                    clearSearch.setVisibility(View.VISIBLE);
-                } else {
-                    clearSearch.setVisibility(View.INVISIBLE);
-                    
-                }
-            }
-
-            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
-            }
-
-            public void afterTextChanged(Editable s) {
-            }
-        });
-        clearSearch.setOnClickListener(new OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                query.getText().clear();
-                hideSoftKeyboard();
-            }
-        });
-        
-        listView.setOnTouchListener(new OnTouchListener() {
-
-            @Override
-            public boolean onTouch(View v, MotionEvent event) {
-                hideSoftKeyboard();
-                return false;
-            }
-        });
-        
+        onChildContextItemSelected(item, user);
+        return super.onContextItemSelected(item);
     }
 
+    public void initArgument() {}
 
-    @Override
-    public void onHiddenChanged(boolean hidden) {
-        super.onHiddenChanged(hidden);
-        this.hidden = hidden;
-        if (!hidden) {
-            refresh();
-        }
+    public void initView(Bundle savedInstanceState) {
+        viewStub = findViewById(R.id.view_stub);
+        srlContactRefresh = findViewById(R.id.srl_contact_refresh);
+        rvContactList = findViewById(R.id.rv_contact_list);
+        sideBarFriend = findViewById(R.id.side_bar_friend);
+        floatingHeader = findViewById(R.id.floating_header);
+
+        rvContactList.setHasFixedSize(true);
+        rvContactList.setLayoutManager(new LinearLayoutManager(mContext));
+        adapter = new EaseContactListAdapter();
+        //通过官方提供的ConcatAdapter可以很便捷的添加头尾布局
+        ConcatAdapter concatAdapter = new ConcatAdapter();
+        addHeader(concatAdapter);
+        concatAdapter.addAdapter(adapter);
+        addFooter(concatAdapter);
+        rvContactList.setAdapter(concatAdapter);
+
+        presenter = new SidebarPresenter();
+        presenter.setupWithRecyclerView(rvContactList, adapter, floatingHeader);
+
+        //注册快捷菜单
+        registerForContextMenu(rvContactList);
     }
-
-    @Override
-    public void onResume() {
-        super.onResume();
-        if (!hidden) {
-            refresh();
-        }
-    }
-
 
     /**
-     * move user to blacklist
+     * 提供添加Header的方法
+     * 利用google提供的ConcatAdapter提供的concatAdapter.addAdapter(headerAdapter)
+     * @param concatAdapter
      */
-    protected void moveToBlacklist(final String username){
-        final ProgressDialog pd = new ProgressDialog(getActivity());
-        String st1 = getResources().getString(R.string.Is_moved_into_blacklist);
-        final String st2 = getResources().getString(R.string.Move_into_blacklist_success);
-        final String st3 = getResources().getString(R.string.Move_into_blacklist_failure);
-        pd.setMessage(st1);
-        pd.setCanceledOnTouchOutside(false);
-        pd.show();
-        new Thread(new Runnable() {
-            public void run() {
-                try {
-                    //move to blacklist
-                    EMClient.getInstance().contactManager().addUserToBlackList(username,false);
-                    getActivity().runOnUiThread(new Runnable() {
-                        public void run() {
-                            pd.dismiss();
-                            Toast.makeText(getActivity(), st2, Toast.LENGTH_SHORT).show();
-                            refresh();
-                        }
-                    });
-                } catch (HyphenateException e) {
-                    e.printStackTrace();
-                    getActivity().runOnUiThread(new Runnable() {
-                        public void run() {
-                            pd.dismiss();
-                            Toast.makeText(getActivity(), st3, Toast.LENGTH_SHORT).show();
-                        }
-                    });
-                }
-            }
-        }).start();
-        
-    }
-    
-    // refresh ui
-    public void refresh() {
-        getContactList();
-        contactListLayout.refresh();
-    }
-    
-
-    @Override
-    public void onDestroy() {
-        
-        EMClient.getInstance().removeConnectionListener(connectionListener);
-        
-        super.onDestroy();
-    }
-    
+    public void addHeader(ConcatAdapter concatAdapter) {}
 
     /**
-     * get contact list and sort, will filter out users in blacklist
+     * 提供添加Footer的方法
+     * 利用google提供的ConcatAdapter提供的concatAdapter.addAdapter(footerAdapter)
+     * @param concatAdapter
      */
-    protected void getContactList() {
-        contactList.clear();
-        if(contactsMap == null){
-            return;
+    public void addFooter(ConcatAdapter concatAdapter) {}
+
+    public void initListener() {
+        srlContactRefresh.setOnRefreshListener(this);
+        sideBarFriend.setOnTouchEventListener(presenter);
+        adapter.setOnItemClickListener(this);
+    }
+
+    public void initData() {
+        if(srlContactRefresh != null && !srlContactRefresh.isRefreshing()) {
+            srlContactRefresh.setRefreshing(true);
         }
-        synchronized (this.contactsMap) {
-            Iterator<Entry<String, EaseUser>> iterator = contactsMap.entrySet().iterator();
-            List<String> blackList = EMClient.getInstance().contactManager().getBlackListUsernames();
-            while (iterator.hasNext()) {
-                Entry<String, EaseUser> entry = iterator.next();
-                // to make it compatible with data in previous version, you can remove this check if this is new app
-                if (!entry.getKey().equals("item_new_friends")
-                        && !entry.getKey().equals("item_groups")
-                        && !entry.getKey().equals("item_chatroom")
-                        && !entry.getKey().equals("item_robots")){
-                    if(!blackList.contains(entry.getKey())){
-                        //filter out users in blacklist
-                        EaseUser user = entry.getValue();
-                        EaseCommonUtils.setUserInitialLetter(user);
-                        contactList.add(user);
+        refreshContactList();
+    }
+
+    @Override
+    public void onRefresh() {
+        refreshContactList();
+    }
+
+    public void refreshContactList() {
+        getContactList(new OnEaseCallBack<List<EaseUser>>() {
+            @Override
+            public void onSuccess(List<EaseUser> models) {
+                adapter.setData(models);
+                finishRefresh();
+            }
+
+            @Override
+            public void onError(int code, String error) {
+                super.onError(code, error);
+                runOnUiThread(()-> finishRefresh());
+            }
+        });
+    }
+
+    private void getContactList(@NonNull OnEaseCallBack<List<EaseUser>> callBack) {
+        new Thread(()-> {
+            try {
+                List<String> usernames = EMClient.getInstance().contactManager().getAllContactsFromServer();
+                List<String> ids = EMClient.getInstance().contactManager().getSelfIdsOnOtherPlatform();
+                if(usernames == null) {
+                    usernames = new ArrayList<>();
+                }
+                if(ids != null && !ids.isEmpty()) {
+                    usernames.addAll(ids);
+                }
+                List<EaseUser> easeUsers = EaseUser.parse(usernames);
+                if(easeUsers != null && !easeUsers.isEmpty()) {
+                    List<String> blackListFromServer = EMClient.getInstance().contactManager().getBlackListFromServer();
+                    for (EaseUser user : easeUsers) {
+                        if(blackListFromServer != null && !blackListFromServer.isEmpty()) {
+                            if(blackListFromServer.contains(user.getUsername())) {
+                                user.setContact(1);
+                            }
+                        }
                     }
                 }
-            }
-        }
+                sortData(easeUsers);
+                runOnUiThread(()-> {
+                    callBack.onSuccess(easeUsers);
+                });
 
-        // sorting
-        Collections.sort(contactList, new Comparator<EaseUser>() {
+
+            } catch (HyphenateException e) {
+                e.printStackTrace();
+                runOnUiThread(()-> {
+                    callBack.onError(e.getErrorCode(), e.getDescription());
+                });
+
+            }
+        }).start();
+    }
+
+    private void sortData(List<EaseUser> data) {
+        if(data == null || data.isEmpty()) {
+            return;
+        }
+        Collections.sort(data, new Comparator<EaseUser>() {
 
             @Override
             public int compare(EaseUser lhs, EaseUser rhs) {
@@ -269,70 +223,67 @@ public class EaseContactListFragment extends EaseBaseFragment {
 
             }
         });
-
     }
-    
-    
-    
-    protected EMConnectionListener connectionListener = new EMConnectionListener() {
-        
-        @Override
-        public void onDisconnected(int error) {
-            if (error == EMError.USER_REMOVED || error == EMError.USER_LOGIN_ANOTHER_DEVICE || error == EMError.SERVER_SERVICE_RESTRICTED) {
-                isConflict = true;
-            } else {
-                getActivity().runOnUiThread(new Runnable() {
-                    public void run() {
-                        onConnectionDisconnected();
-                    }
 
-                });
+    public void finishRefresh() {
+        if(srlContactRefresh != null) {
+            srlContactRefresh.setRefreshing(false);
+        }
+    }
+
+    public void showDeleteDialog(EaseUser user) {
+        new AlertDialog.Builder(mContext)
+                    .setTitle(R.string.ease_friends_delete_contact_hint)
+                    .setPositiveButton("确定", new DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(DialogInterface dialog, int which) {
+                            deleteContact(user);
+                        }
+                    })
+                    .setNegativeButton("取消", null)
+                    .show();
+    }
+
+    private void deleteContact(EaseUser user) {
+        EMClient.getInstance().contactManager().asyncDeclineInvitation(user.getUsername(), new EMCallBack() {
+            @Override
+            public void onSuccess() {
+                runOnUiThread(()->refreshContactList());
             }
-        }
-        
-        @Override
-        public void onConnected() {
-            getActivity().runOnUiThread(new Runnable() {
-                public void run() {
-                    onConnectionConnected();
-                }
 
-            });
-        }
-    };
-    private EaseContactListItemClickListener listItemClickListener;
-    
-    
-    protected void onConnectionDisconnected() {
-        
+            @Override
+            public void onError(int code, String error) {
+                runOnUiThread(()-> Toast.makeText(mContext, error, Toast.LENGTH_SHORT).show());
+            }
+
+            @Override
+            public void onProgress(int progress, String status) {
+
+            }
+        });
     }
-    
-    protected void onConnectionConnected() {
-        
-    }
-    
+
     /**
-     * set contacts map, key is the hyphenate id
-     * @param contactsMap
+     * 方便子类扩展
+     * @param menu
+     * @param v
+     * @param menuInfo
      */
-    public void setContactsMap(Map<String, EaseUser> contactsMap){
-        this.contactsMap = contactsMap;
+    public void onChildCreateContextMenu(ContextMenu menu, View v, ContextMenu.ContextMenuInfo menuInfo) {
+
     }
-    
-    public interface EaseContactListItemClickListener {
-        /**
-         * on click event for item in contact list 
-         * @param user --the user of item
-         */
-        void onListItemClicked(EaseUser user);
-    }
-    
+
     /**
-     * set contact list item click listener
-     * @param listItemClickListener
+     *  方便子类扩展
+     * @param item
+     * @param user
      */
-    public void setContactListItemClickListener(EaseContactListItemClickListener listItemClickListener){
-        this.listItemClickListener = listItemClickListener;
+    public void onChildContextItemSelected(MenuItem item, EaseUser user) {
+
     }
-    
+
+    @Override
+    public void onItemClick(View view, int position) {
+
+    }
 }

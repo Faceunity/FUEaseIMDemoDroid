@@ -2,9 +2,10 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
+    xmlns:tools="http://schemas.android.com/tools"
     android:gravity="center_horizontal"
     android:orientation="vertical"
-    android:paddingTop="13dp" >
+    android:paddingTop="13dp">
 
     <TextView
         android:id="@+id/timestamp"
@@ -19,13 +20,7 @@
 
         <com.hyphenate.easeui.widget.EaseImageView
             android:id="@+id/iv_userhead"
-            android:layout_width="@dimen/size_avatar"
-            android:layout_height="@dimen/size_avatar"
-            android:layout_alignParentRight="true"
-            android:layout_alignParentTop="true"
-            android:layout_marginRight="@dimen/margin_chat_activity"
-            android:src="@drawable/ease_default_avatar"
-            android:scaleType="fitXY" />
+            style="@style/ease_row_sent_iv_userhead_style"/>
 
         <RelativeLayout
             android:id="@+id/bubble"
@@ -33,22 +28,23 @@
             android:layout_height="wrap_content"
             android:layout_marginRight="@dimen/margin_chat_activity"
             android:layout_toLeftOf="@id/iv_userhead"
-            android:background="@drawable/ease_chatto_bg"
+            android:minWidth="30dp"
+            android:padding="8dp"
+            android:background="@drawable/ease_chat_bubble_send_bg"
             >
 
             <TextView
                 android:id="@+id/tv_chatcontent"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:layout_centerVertical="true"
                 android:autoLink="web"
-                android:layout_centerInParent="true"
                 android:gravity="center|left"
-                android:paddingRight="6dp"
-                android:paddingLeft="1dp"
-                android:minHeight="38dp"
                 android:lineSpacingExtra="2dp"
-              	android:textColor="#000000"
                 android:maxWidth="225.0dip"
+                android:minHeight="38dp"
+                android:textColor="#000000"
+                tools:text="环信"
                 android:textSize="15sp" />
         </RelativeLayout>
 
@@ -64,13 +60,8 @@
 
         <ImageView
             android:id="@+id/msg_status"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_centerVertical="true"
             android:layout_toLeftOf="@id/bubble"
-            android:clickable="true"
-            android:src="@drawable/ease_msg_state_failed_resend"
-            android:visibility="gone" />
+            style="@style/ease_row_sent_iv_fail_style"/>
 
         <TextView
             android:id="@+id/tv_ack"
@@ -79,6 +70,7 @@
             android:layout_height="wrap_content"
             android:layout_centerVertical="true"
             android:layout_toLeftOf="@id/bubble"
+            android:layout_marginRight="@dimen/ease_chat_ack_margin_bubble"
             android:text="@string/text_ack_msg"
             android:textSize="12sp"
             android:visibility="invisible" />
@@ -90,17 +82,19 @@
             android:layout_height="wrap_content"
             android:layout_centerVertical="true"
             android:layout_toLeftOf="@id/bubble"
+            android:layout_marginRight="@dimen/ease_chat_ack_margin_bubble"
             android:text="@string/text_delivered_msg"
             android:textSize="12sp"
             android:visibility="invisible" />
 
         <ProgressBar
             android:id="@+id/progress_bar"
+            style="?android:attr/progressBarStyle"
             android:layout_width="25dp"
             android:layout_height="25dp"
-            android:layout_centerVertical="true"
+            android:indeterminateDrawable="@drawable/ease_chat_loading_progress_bar"
             android:layout_toLeftOf="@id/bubble"
-            android:visibility="visible" />
+            android:visibility="invisible" />
     </RelativeLayout>
 
 </LinearLayout>

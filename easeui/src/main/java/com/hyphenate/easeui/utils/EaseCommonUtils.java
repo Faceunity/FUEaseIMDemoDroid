@@ -19,12 +19,17 @@ import android.content.Context;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.text.TextUtils;
+import android.util.DisplayMetrics;
+import android.util.Log;
+import android.util.TypedValue;
+import android.view.WindowManager;
 
+import com.hyphenate.chat.EMConversation;
 import com.hyphenate.chat.EMConversation.EMConversationType;
 import com.hyphenate.chat.EMMessage;
 import com.hyphenate.chat.EMTextMessageBody;
-import com.hyphenate.easeui.EaseConstant;
 import com.hyphenate.easeui.R;
+import com.hyphenate.easeui.constants.EaseConstant;
 import com.hyphenate.easeui.domain.EaseUser;
 import com.hyphenate.util.EMLog;
 import com.hyphenate.util.HanziToPinyin;
@@ -99,6 +104,8 @@ public class EaseCommonUtils {
         case VIDEO:
             digest = getString(context, R.string.video);
             break;
+        case CUSTOM:
+            digest = getString(context, R.string.custom);
         case TXT:
             EMTextMessageBody txtBody = (EMTextMessageBody) message.getBody();
             if(message.getBooleanAttribute(EaseConstant.MESSAGE_ATTR_IS_VOICE_CALL, false)){
@@ -122,7 +129,7 @@ public class EaseCommonUtils {
             EMLog.e(TAG, "error, unknow type");
             return "";
         }
-
+        Log.e("TAG", "message text = "+digest);
         return digest;
     }
     
@@ -131,7 +138,7 @@ public class EaseCommonUtils {
     }
 	
 	/**
-	 * get top activity
+	 * get top context
 	 * @param context
 	 * @return
 	 */
@@ -205,6 +212,23 @@ public class EaseCommonUtils {
     }
 
     /**
+     * get chat type by conversation type
+     * @param conversation
+     * @return
+     */
+    public static int getChatType(EMConversation conversation) {
+        if(conversation.isGroup()) {
+            if(conversation.getType() == EMConversationType.ChatRoom) {
+                return EaseConstant.CHATTYPE_CHATROOM;
+            }else {
+                return EaseConstant.CHATTYPE_GROUP;
+            }
+        }else {
+            return EaseConstant.CHATTYPE_SINGLE;
+        }
+    }
+
+    /**
      * \~chinese
      * 判断是否是免打扰的消息,如果是app中应该不要给用户提示新消息
      * @param message
@@ -218,6 +242,103 @@ public class EaseCommonUtils {
      */
     public static boolean isSilentMessage(EMMessage message){
         return message.getBooleanAttribute("em_ignore_notification", false);
+    }
+
+    /**
+     * 获取屏幕的基本信息
+     * @param context
+     * @return
+     */
+    public static float[] getScreenInfo(Context context) {
+        WindowManager manager = (WindowManager) context.getSystemService(Context.WINDOW_SERVICE);
+        float[] info = new float[5];
+        if(manager != null) {
+            DisplayMetrics dm = new DisplayMetrics();
+            manager.getDefaultDisplay().getMetrics(dm);
+            info[0] = dm.widthPixels;
+            info[1] = dm.heightPixels;
+            info[2] = dm.densityDpi;
+            info[3] = dm.density;
+            info[4] = dm.scaledDensity;
+        }
+        return info;
+    }
+
+    /**
+     * dip to px
+     * @param context
+     * @param value
+     * @return
+     */
+    public static float dip2px(Context context, float value) {
+        return TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, value, context.getResources().getDisplayMetrics());
+    }
+
+    /**
+     * sp to px
+     * @param context
+     * @param value
+     * @return
+     */
+    public static float sp2px(Context context, float value) {
+        return TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, value, context.getResources().getDisplayMetrics());
+    }
+
+    /**
+     * 判断是否是时间戳
+     * @param time
+     * @return
+     */
+    public static boolean isTimestamp(String time) {
+        if(TextUtils.isEmpty(time)) {
+            return false;
+        }
+        long timestamp = 0L;
+        try {
+            timestamp = Long.parseLong(time);
+        } catch (NumberFormatException e) {
+            e.printStackTrace();
+        }
+        return timestamp > 0;
+    }
+
+    /**
+     * 获取首字母
+     * @param name
+     * @return
+     */
+    public static String getLetter(String name) {
+        return new GetInitialLetter().getLetter(name);
+    }
+
+    private static class GetInitialLetter {
+        private String defaultLetter = "#";
+
+        /**
+         * 获取首字母
+         * @param name
+         * @return
+         */
+        public String getLetter(String name) {
+            if(TextUtils.isEmpty(name)) {
+                return defaultLetter;
+            }
+            char char0 = name.toLowerCase().charAt(0);
+            if(Character.isDigit(char0)) {
+                return defaultLetter;
+            }
+            ArrayList<HanziToPinyin.Token> l = HanziToPinyin.getInstance().get(name.substring(0, 1));
+            if(l != null && !l.isEmpty() && l.get(0).target.length() > 0) {
+                HanziToPinyin.Token token = l.get(0);
+                String letter = token.target.substring(0, 1).toUpperCase();
+                char c = letter.charAt(0);
+                if(c < 'A' || c > 'Z') {
+                    return defaultLetter;
+                }
+                return letter;
+            }
+            return defaultLetter;
+        }
     }
 
 }

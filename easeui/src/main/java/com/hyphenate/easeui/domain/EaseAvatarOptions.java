@@ -17,7 +17,7 @@ public class EaseAvatarOptions {
     /**
      * 设置item中的头像形状
      * 0：默认，1：圆形，2：矩形
-     * @param shape
+     * @param avatarShape
      */
     public void setAvatarShape(int avatarShape) {
         this.avatarShape = avatarShape;
@@ -30,7 +30,7 @@ public class EaseAvatarOptions {
     /**
      * 设置倒角
      *
-     * @param radius
+     * @param avatarRadius
      */
     public void setAvatarRadius(int avatarRadius) {
         this.avatarRadius = avatarRadius;
@@ -43,7 +43,7 @@ public class EaseAvatarOptions {
     /**
      * 设置头像控件边框颜色
      *
-     * @param color
+     * @param avatarBorderColor
      */
     public void setAvatarBorderColor(int avatarBorderColor) {
         this.avatarBorderColor = avatarBorderColor;
@@ -56,7 +56,7 @@ public class EaseAvatarOptions {
     /**
      * 设置头像控件边框宽度
      *
-     * @param width
+     * @param avatarBorderWidth
      */
     public void setAvatarBorderWidth(int avatarBorderWidth) {
         this.avatarBorderWidth = avatarBorderWidth;

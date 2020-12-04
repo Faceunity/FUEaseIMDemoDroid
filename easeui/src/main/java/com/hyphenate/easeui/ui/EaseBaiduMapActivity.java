@@ -13,20 +13,22 @@
  */
 package com.hyphenate.easeui.ui;
 
-import android.app.ProgressDialog;
+import android.app.Activity;
 import android.content.BroadcastReceiver;
 import android.content.Context;
-import android.content.DialogInterface;
-import android.content.DialogInterface.OnCancelListener;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.Bundle;
+import android.text.TextUtils;
 import android.util.Log;
 import android.view.View;
-import android.widget.Button;
-import android.widget.EditText;
-import android.widget.FrameLayout;
+import android.view.ViewGroup;
+import android.widget.RelativeLayout;
 import android.widget.Toast;
+
+import androidx.constraintlayout.widget.ConstraintLayout;
+import androidx.core.content.ContextCompat;
+import androidx.fragment.app.Fragment;
 
 import com.baidu.location.BDLocation;
 import com.baidu.location.BDLocationListener;
@@ -42,76 +44,109 @@ import com.baidu.mapapi.map.MapStatusUpdateFactory;
 import com.baidu.mapapi.map.MapView;
 import com.baidu.mapapi.map.MarkerOptions;
 import com.baidu.mapapi.map.MyLocationConfiguration;
-import com.baidu.mapapi.map.MyLocationConfiguration.LocationMode;
 import com.baidu.mapapi.map.OverlayOptions;
 import com.baidu.mapapi.model.LatLng;
 import com.baidu.mapapi.utils.CoordinateConverter;
 import com.hyphenate.easeui.R;
+import com.hyphenate.easeui.ui.base.EaseBaseActivity;
+import com.hyphenate.easeui.utils.EaseCommonUtils;
+import com.hyphenate.easeui.widget.EaseTitleBar;
+import com.hyphenate.util.EMLog;
 
-public class EaseBaiduMapActivity extends EaseBaseActivity {
+public class EaseBaiduMapActivity extends EaseBaseActivity implements EaseTitleBar.OnBackPressListener,
+																		EaseTitleBar.OnRightClickListener{
+	private EaseTitleBar titleBarMap;
+	private MapView mapView;
+	private BaiduMap baiduMap;
+	private BDLocation lastLocation;
+	protected double latitude;
+	protected double longtitude;
+	protected String address;
+	private BaiduSDKReceiver mBaiduReceiver;
+	private LocationClient mLocClient;
 
-	private final static String TAG = "map";
-	static MapView mMapView = null;
-	FrameLayout mMapViewContainer = null;
-	LocationClient mLocClient;
-	public MyLocationListenner myListener = new MyLocationListenner();
-
-	Button sendButton = null;
-
-	EditText indexText = null;
-	int index = 0;
-	// LocationData locData = null;
-	static BDLocation lastLocation = null;
-	public static EaseBaiduMapActivity instance = null;
-	ProgressDialog progressDialog;
-	private BaiduMap mBaiduMap;
-
-	public class BaiduSDKReceiver extends BroadcastReceiver {
-		public void onReceive(Context context, Intent intent) {
-			String s = intent.getAction();
-			String st1 = getResources().getString(R.string.Network_error);
-			if (s.equals(SDKInitializer.SDK_BROADTCAST_ACTION_STRING_PERMISSION_CHECK_ERROR)) {
-				
-				String st2 = getResources().getString(R.string.please_check);
-				Toast.makeText(instance, st2, Toast.LENGTH_SHORT).show();
-			} else if (s.equals(SDKInitializer.SDK_BROADCAST_ACTION_STRING_NETWORK_ERROR)) {
-				Toast.makeText(instance, st1, Toast.LENGTH_SHORT).show();
-			}
-		}
+	public static void actionStartForResult(Fragment fragment, int requestCode) {
+		Intent intent = new Intent(fragment.getContext(), EaseBaiduMapActivity.class);
+		fragment.startActivityForResult(intent, requestCode);
 	}
 
-	private BaiduSDKReceiver mBaiduReceiver;
-	
-	
+	public static void actionStartForResult(Activity activity, int requestCode) {
+		Intent intent = new Intent(activity, EaseBaiduMapActivity.class);
+		activity.startActivityForResult(intent, requestCode);
+	}
+
+	public static void actionStart(Context context, double latitude, double longtitude, String address) {
+		Intent intent = new Intent(context, EaseBaiduMapActivity.class);
+		intent.putExtra("latitude", latitude);
+		intent.putExtra("longtitude", longtitude);
+		intent.putExtra("address", address);
+		context.startActivity(intent);
+	}
+
 	@Override
 	public void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
-		instance = this;
 		//initialize SDK with context, should call this before setContentView
-        SDKInitializer.initialize(getApplicationContext());  
+		SDKInitializer.initialize(getApplicationContext());
 		setContentView(R.layout.ease_activity_baidumap);
-		mMapView = (MapView) findViewById(R.id.bmapView);
-		sendButton = (Button) findViewById(R.id.btn_location_send);
-		Intent intent = getIntent();
-		double latitude = intent.getDoubleExtra("latitude", 0);
-		LocationMode mCurrentMode = LocationMode.NORMAL;
-		mBaiduMap = mMapView.getMap();
-		MapStatusUpdate msu = MapStatusUpdateFactory.zoomTo(15.0f);
-		mBaiduMap.setMapStatus(msu);
-		initMapView();
-		if (latitude == 0) {
-			mMapView = new MapView(this, new BaiduMapOptions());
-			mBaiduMap.setMyLocationConfigeration(new MyLocationConfiguration(
-					mCurrentMode, true, null));
+		setFitSystemForTheme(false, R.color.transparent, true);
+		initIntent();
+		initView();
+		initListener();
+		initData();
+	}
+
+	private void initIntent() {
+		latitude = getIntent().getDoubleExtra("latitude", 0);
+		longtitude = getIntent().getDoubleExtra("longtitude", 0);
+		address = getIntent().getStringExtra("address");
+	}
+
+	private void initView() {
+		titleBarMap = findViewById(R.id.title_bar_map);
+		mapView = findViewById(R.id.bmapView);
+		titleBarMap.setRightTitleResource(R.string.button_send);
+		double latitude = getIntent().getDoubleExtra("latitude", 0);
+		if(latitude != 0) {
+			titleBarMap.getRightLayout().setVisibility(View.GONE);
+		}else {
+			titleBarMap.getRightLayout().setVisibility(View.VISIBLE);
+			titleBarMap.getRightLayout().setClickable(false);
+		}
+		ConstraintLayout.LayoutParams params = (ConstraintLayout.LayoutParams) titleBarMap.getLayoutParams();
+		params.topMargin = (int) EaseCommonUtils.dip2px(this, 24);
+		titleBarMap.setBackgroundColor(ContextCompat.getColor(this, R.color.transparent));
+		titleBarMap.getRightText().setTextColor(ContextCompat.getColor(this, R.color.white));
+		titleBarMap.getRightText().setBackgroundResource(R.drawable.ease_title_bar_right_selector);
+		int left = (int) EaseCommonUtils.dip2px(this, 10);
+		int top = (int) EaseCommonUtils.dip2px(this, 5);
+		titleBarMap.getRightText().setPadding(left, top, left, top);
+		ViewGroup.LayoutParams layoutParams = titleBarMap.getRightLayout().getLayoutParams();
+		if(layoutParams instanceof ViewGroup.MarginLayoutParams) {
+		    ((ViewGroup.MarginLayoutParams) layoutParams).setMargins(0, 0, left, 0);
+		}
+
+		baiduMap = mapView.getMap();
+		baiduMap.setMapStatus(MapStatusUpdateFactory.zoomTo(15.0f));
+		mapView.setLongClickable(true);
+	}
+
+	private void initListener() {
+		titleBarMap.setOnBackPressListener(this);
+		titleBarMap.setOnRightClickListener(this);
+	}
+
+	private void initData() {
+		if(latitude == 0) {
+			mapView = new MapView(this, new BaiduMapOptions());
+			baiduMap.setMyLocationConfigeration(
+					new MyLocationConfiguration(MyLocationConfiguration.LocationMode.NORMAL, true, null));
 			showMapWithLocationClient();
-		} else {
-			double longtitude = intent.getDoubleExtra("longitude", 0);
-			String address = intent.getStringExtra("address");
-			LatLng p = new LatLng(latitude, longtitude);
-			mMapView = new MapView(this,
-					new BaiduMapOptions().mapStatus(new MapStatus.Builder()
-							.target(p).build()));
-			showMap(latitude, longtitude, address);
+		}else {
+			LatLng lng = new LatLng(latitude, longtitude);
+			mapView = new MapView(this,
+					new BaiduMapOptions().mapStatus(new MapStatus.Builder().target(lng).build()));
+			showMap(latitude, longtitude);
 		}
 		IntentFilter iFilter = new IntentFilter();
 		iFilter.addAction(SDKInitializer.SDK_BROADTCAST_ACTION_STRING_PERMISSION_CHECK_ERROR);
@@ -120,58 +155,89 @@ public class EaseBaiduMapActivity extends EaseBaseActivity {
 		registerReceiver(mBaiduReceiver, iFilter);
 	}
 
-	private void showMap(double latitude, double longtitude, String address) {
-		sendButton.setVisibility(View.GONE);
-		LatLng llA = new LatLng(latitude, longtitude);
-		CoordinateConverter converter= new CoordinateConverter();
-		converter.coord(llA);
-		converter.from(CoordinateConverter.CoordType.COMMON);
-		LatLng convertLatLng = converter.convert();
-		OverlayOptions ooA = new MarkerOptions().position(convertLatLng).icon(BitmapDescriptorFactory
-				.fromResource(R.drawable.ease_icon_marka))
-				.zIndex(4).draggable(true);
-		mBaiduMap.addOverlay(ooA);
-		MapStatusUpdate u = MapStatusUpdateFactory.newLatLngZoom(convertLatLng, 17.0f);
-		mBaiduMap.animateMapStatus(u);
-	}
-
-	private void showMapWithLocationClient() {
-		String str1 = getResources().getString(R.string.Making_sure_your_location);
-		progressDialog = new ProgressDialog(this);
-		progressDialog.setCanceledOnTouchOutside(false);
-		progressDialog.setProgressStyle(ProgressDialog.STYLE_SPINNER);
-		progressDialog.setMessage(str1);
-
-		progressDialog.setOnCancelListener(new OnCancelListener() {
-
-			public void onCancel(DialogInterface arg0) {
-				if (progressDialog.isShowing()) {
-					progressDialog.dismiss();
-				}
-				Log.d("map", "cancel retrieve location");
-				finish();
-			}
-		});
-
-		progressDialog.show();
-
+	protected void showMapWithLocationClient() {
 		mLocClient = new LocationClient(this);
-		mLocClient.registerLocationListener(myListener);
-
+		mLocClient.registerLocationListener(new EaseBDLocationListener());
 		LocationClientOption option = new LocationClientOption();
-		option.setOpenGps(true);// open gps
-		// option.setCoorType("bd09ll"); 
+		// open gps
+		option.setOpenGps(true);
+		// option.setCoorType("bd09ll");
 		// Johnson change to use gcj02 coordination. chinese national standard
 		// so need to conver to bd09 everytime when draw on baidu map
 		option.setCoorType("gcj02");
 		option.setScanSpan(30000);
 		option.setAddrType("all");
+		option.setIgnoreKillProcess(true);
 		mLocClient.setLocOption(option);
+		if(!mLocClient.isStarted()) {
+			mLocClient.start();
+		}
+	}
+
+	protected void showMap(double latitude, double longtitude) {
+		LatLng lng = new LatLng(latitude, longtitude);
+		CoordinateConverter converter = new CoordinateConverter();
+		converter.coord(lng);
+		converter.from(CoordinateConverter.CoordType.COMMON);
+		LatLng convertLatLng = converter.convert();
+		OverlayOptions ooA = new MarkerOptions().position(convertLatLng).icon(BitmapDescriptorFactory
+				.fromResource(R.drawable.ease_icon_marka))
+				.zIndex(4).draggable(true);
+		baiduMap.addOverlay(ooA);
+		MapStatusUpdate u = MapStatusUpdateFactory.newLatLngZoom(convertLatLng, 17.0f);
+		baiduMap.animateMapStatus(u);
+	}
+
+	@Override
+	public void onBackPress(View view) {
+		onBackPressed();
+	}
+
+	@Override
+	public void onRightClick(View view) {
+		sendLocation();
+	}
+
+	public void onReceiveBDLocation(BDLocation bdLocation) {
+		if(bdLocation == null) {
+			return;
+		}
+		if (lastLocation != null) {
+			if (lastLocation.getLatitude() == bdLocation.getLatitude() && lastLocation.getLongitude() == bdLocation.getLongitude()) {
+				Log.d("map", "same location, skip refresh");
+				// mMapView.refresh(); //need this refresh?
+				return;
+			}
+		}
+		titleBarMap.getRightLayout().setClickable(true);
+		lastLocation = bdLocation;
+		baiduMap.clear();
+		showMap(lastLocation.getLatitude(), lastLocation.getLongitude());
+	}
+
+	private void sendLocation() {
+		Intent intent = getIntent();
+		intent.putExtra("latitude", lastLocation.getLatitude());
+		intent.putExtra("longitude", lastLocation.getLongitude());
+		intent.putExtra("address", lastLocation.getAddrStr());
+		this.setResult(RESULT_OK, intent);
+		finish();
+	}
+
+	@Override
+	protected void onResume() {
+		mapView.onResume();
+		if (mLocClient != null) {
+			if(!mLocClient.isStarted()) {
+				mLocClient.start();
+			}
+		}
+		super.onResume();
 	}
 
 	@Override
 	protected void onPause() {
-		mMapView.onPause();
+		mapView.onPause();
 		if (mLocClient != null) {
 			mLocClient.stop();
 		}
@@ -180,83 +246,40 @@ public class EaseBaiduMapActivity extends EaseBaseActivity {
 	}
 
 	@Override
-	protected void onResume() {
-		mMapView.onResume();
-		if (mLocClient != null) {
-			mLocClient.start();
-		}
-		super.onResume();
-	}
-
-	@Override
 	protected void onDestroy() {
 		if (mLocClient != null)
 			mLocClient.stop();
-		mMapView.onDestroy();
+		mapView.onDestroy();
 		unregisterReceiver(mBaiduReceiver);
 		super.onDestroy();
 	}
-	private void initMapView() {
-		mMapView.setLongClickable(true);
+
+	public class BaiduSDKReceiver extends BroadcastReceiver {
+
+		@Override
+		public void onReceive(Context context, Intent intent) {
+			String action = intent.getAction();
+			if(TextUtils.equals(action, SDKInitializer.SDK_BROADTCAST_ACTION_STRING_PERMISSION_CHECK_ERROR)) {
+				showErrorToast(getResources().getString(R.string.please_check));
+			}else if(TextUtils.equals(action, SDKInitializer.SDK_BROADCAST_ACTION_STRING_NETWORK_ERROR)) {
+				showErrorToast(getResources().getString(R.string.Network_error));
+			}
+		}
+	}
+
+	public class EaseBDLocationListener implements BDLocationListener {
+
+		@Override
+		public void onReceiveLocation(BDLocation bdLocation) {
+			onReceiveBDLocation(bdLocation);
+		}
 	}
 
 	/**
-	 * format new location to string and show on screen
+	 * show error message
+	 * @param message
 	 */
-	public class MyLocationListenner implements BDLocationListener {
-		@Override
-		public void onReceiveLocation(BDLocation location) {
-			if (location == null) {
-				return;
-			}
-			Log.d("map", "On location change received:" + location);
-			Log.d("map", "addr:" + location.getAddrStr());
-			sendButton.setEnabled(true);
-			if (progressDialog != null) {
-				progressDialog.dismiss();
-			}
-
-			if (lastLocation != null) {
-				if (lastLocation.getLatitude() == location.getLatitude() && lastLocation.getLongitude() == location.getLongitude()) {
-					Log.d("map", "same location, skip refresh");
-					// mMapView.refresh(); //need this refresh?
-					return;
-				}
-			}
-			lastLocation = location;
-			mBaiduMap.clear();
-			LatLng llA = new LatLng(lastLocation.getLatitude(), lastLocation.getLongitude());
-			CoordinateConverter converter= new CoordinateConverter();
-			converter.coord(llA);
-			converter.from(CoordinateConverter.CoordType.COMMON);
-			LatLng convertLatLng = converter.convert();
-			OverlayOptions ooA = new MarkerOptions().position(convertLatLng).icon(BitmapDescriptorFactory
-					.fromResource(R.drawable.ease_icon_marka))
-					.zIndex(4).draggable(true);
-			mBaiduMap.addOverlay(ooA);
-			MapStatusUpdate u = MapStatusUpdateFactory.newLatLngZoom(convertLatLng, 17.0f);
-			mBaiduMap.animateMapStatus(u);
-		}
-
-		public void onReceivePoi(BDLocation poiLocation) {
-			if (poiLocation == null) {
-				return;
-			}
-		}
+	protected void showErrorToast(String message) {
+		Toast.makeText(EaseBaiduMapActivity.this, message, Toast.LENGTH_SHORT).show();
 	}
-
-	public void back(View v) {
-		finish();
-	}
-
-	public void sendLocation(View view) {
-		Intent intent = this.getIntent();
-		intent.putExtra("latitude", lastLocation.getLatitude());
-		intent.putExtra("longitude", lastLocation.getLongitude());
-		intent.putExtra("address", lastLocation.getAddrStr());
-		this.setResult(RESULT_OK, intent);
-		finish();
-		overridePendingTransition(R.anim.slide_in_from_left, R.anim.slide_out_to_right);
-	}
-
 }

@@ -14,133 +14,226 @@
 package com.hyphenate.easeui.widget;
 
 import android.content.Context;
+import android.content.res.TypedArray;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Paint.Align;
+import android.graphics.drawable.Drawable;
+import android.text.TextUtils;
 import android.util.AttributeSet;
-import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
-import android.widget.HeaderViewListAdapter;
-import android.widget.ListAdapter;
-import android.widget.ListView;
-import android.widget.SectionIndexer;
-import android.widget.TextView;
+
+import androidx.annotation.ColorRes;
+import androidx.annotation.DrawableRes;
+import androidx.annotation.Nullable;
+import androidx.core.content.ContextCompat;
 
 import com.hyphenate.easeui.R;
-import com.hyphenate.util.DensityUtil;
 
+/**
+ * side bar
+ */
 public class EaseSidebar extends View{
 	private Paint paint;
-	private TextView header;
-	private float height;
-	private ListView mListView;
+	private float ItemHeight;
 	private Context context;
-	
-	private SectionIndexer sectionIndex = null;
-	
-	public void setListView(ListView listView){
-		mListView = listView;
+	private OnTouchEventListener mListener;
+	private String[] sections = new String[]{"A","B","C","D","E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z","#"};
+	private String topText;
+	private int mTextColor;
+	private static final String DEFAULT_COLOR = "#8C8C8C";
+	private static final float DEFAULT_TEXT_SIZE = 10;
+	private float mTextSize;
+	private int mBgColor;
+	private int mWidth, mHeight;
+	private float mTextCoefficient = 1;
+
+	public EaseSidebar(Context context) {
+		this(context, null);
 	}
-	
 
 	public EaseSidebar(Context context, AttributeSet attrs) {
-		super(context, attrs);
+		this(context, attrs, 0);
+	}
+
+	public EaseSidebar(Context context, @Nullable AttributeSet attrs, int defStyleAttr) {
+		super(context, attrs, defStyleAttr);
 		this.context = context;
+		initAttrs(attrs);
 		init();
 	}
 
-	private String[] sections; 
+	private void initAttrs(AttributeSet attrs) {
+		if(attrs != null) {
+			TypedArray a = context.obtainStyledAttributes(attrs, R.styleable.EaseSidebar);
+			int topTextId = a.getResourceId(R.styleable.EaseSidebar_ease_side_bar_top_text, -1);
+			if(topTextId != -1) {
+				topText = context.getResources().getString(topTextId);
+			}else {
+				topText = a.getString(R.styleable.EaseSidebar_ease_side_bar_top_text);
+			}
+			int textColorId = a.getResourceId(R.styleable.EaseSidebar_ease_side_bar_text_color, -1);
+			if(textColorId != -1) {
+				mTextColor = ContextCompat.getColor(context, textColorId);
+			}else {
+				mTextColor = a.getColor(R.styleable.EaseSidebar_ease_side_bar_text_color, Color.parseColor(DEFAULT_COLOR));
+			}
+			mTextSize = a.getDimension(R.styleable.EaseSidebar_ease_side_bar_text_size, DEFAULT_TEXT_SIZE);
+			int bgId = a.getResourceId(R.styleable.EaseSidebar_ease_side_bar_background, -1);
+			if(bgId != -1) {
+				mBgColor = ContextCompat.getColor(context, textColorId);
+			}else {
+				mBgColor = a.getColor(R.styleable.EaseSidebar_ease_side_bar_background, Color.TRANSPARENT);
+			}
+			int headArrays = a.getResourceId(R.styleable.EaseSidebar_ease_side_bar_head_arrays, -1);
+			if(headArrays != -1) {
+			    sections = getResources().getStringArray(headArrays);
+			}else {
+				sections = new String[]{"A","B","C","D","E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z","#"};
+			}
+		}
+	}
 
 	private void init(){
-	    String st = context.getString(R.string.search_new);
-        sections= new String[]{st,"A","B","C","D","E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z","#"};
+		if(sections.length > 27) {
+		    if(!TextUtils.isEmpty(topText)) {
+		        sections[0] = topText;
+		    }
+		}
 		paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-		paint.setColor(Color.parseColor("#8C8C8C"));
+		paint.setColor(mTextColor);
 		paint.setTextAlign(Align.CENTER);
-		paint.setTextSize(DensityUtil.sp2px(context, 10));
+		paint.setTextSize(mTextSize);
 	}
-	
+
+	@Override
+	protected void onSizeChanged(int w, int h, int oldw, int oldh) {
+		super.onSizeChanged(w, h, oldw, oldh);
+		// 获取view的高度
+		mWidth = w;
+		mHeight = h;
+		checkTextSize();
+	}
+
+	/**
+	 * 校验文字大小是否合适
+	 */
+	private void checkTextSize() {
+		if(paint != null) {
+			Paint.FontMetrics metrics = paint.getFontMetrics();
+			float textItemHeight = metrics.bottom - metrics.top;
+			if(sections.length * textItemHeight > mHeight) {
+				mTextCoefficient = mHeight / (sections.length * textItemHeight);
+				paint.setTextSize(paint.getTextSize() * mTextCoefficient);
+			}else {
+				paint.setTextSize(mTextSize);
+			}
+		}
+	}
+
 	@Override
 	protected void onDraw(Canvas canvas) {
 		super.onDraw(canvas);
+		if(mBgColor != Color.TRANSPARENT) {
+			canvas.drawColor(mBgColor);
+		}
 		float center = getWidth() / 2;
-		height = getHeight() / sections.length;
+		ItemHeight = getHeight() / sections.length;
 		for (int i = sections.length - 1; i > -1; i--) {
-			canvas.drawText(sections[i], center, height * (i+1), paint);
+			canvas.drawText(sections[i], center, ItemHeight * (i+1), paint);
 		}
 	}
-	
-	private int sectionForPoint(float y) {
-		int index = (int) (y / height);
-		if(index < 0) {
-			index = 0;
+
+	@Override
+	public boolean onTouchEvent(MotionEvent event) {
+		int pointer = sectionForPoint(event.getY());
+		String section = sections[pointer];
+		switch (event.getAction()) {
+			case MotionEvent.ACTION_DOWN:
+				// 提供对外的接口，进行操作
+				if(mListener != null) {
+					mListener.onActionDown(event, section);
+				}
+				return true;
+			case MotionEvent.ACTION_MOVE:
+				// 提供对外的接口，便于开发者操作
+				if(mListener != null) {
+					mListener.onActionMove(event, section);
+				}
+				return true;
+			case MotionEvent.ACTION_UP:
+			case MotionEvent.ACTION_CANCEL:
+				if(mListener != null) {
+					mListener.onActionUp(event);
+				}
+				return true;
 		}
-		if(index > sections.length - 1){
-			index = sections.length - 1;
+		return super.onTouchEvent(event);
+	}
+
+	/**
+	 * 获取移动时的字符
+	 * @param y
+	 * @return
+	 */
+	private int sectionForPoint(float y) {
+		int index = (int) (y / ItemHeight);
+		if(index < 0) {
+		    index = 0;
+		}
+		if(index > sections.length -1) {
+		    index = sections.length - 1;
 		}
 		return index;
 	}
-	
-	private void setHeaderTextAndscroll(MotionEvent event){
-		 if (mListView == null) {
-		        //check the mListView to avoid NPE. but the mListView shouldn't be null
-		        //need to check the call stack later
-		        return;
-		    }
-		String headerString = sections[sectionForPoint(event.getY())];
-		header.setText(headerString);
-		ListAdapter adapter = mListView.getAdapter();
-		if(sectionIndex == null){
-    		if(adapter instanceof HeaderViewListAdapter){
-    		    sectionIndex = (SectionIndexer) ((HeaderViewListAdapter) adapter).getWrappedAdapter();
-    		}else if(adapter instanceof SectionIndexer){
-    		    sectionIndex = (SectionIndexer)adapter;
-    		}else{
-    		    throw new RuntimeException("listview sets adapter does not implement SectionIndexer interface");
-    		}
-		}
-		String[] adapterSections = (String[]) sectionIndex.getSections();
-		try {
-			for (int i = adapterSections.length - 1; i > -1; i--) {
-				if(adapterSections[i].equals(headerString)){
-					mListView.setSelection(sectionIndex.getPositionForSection(i));
-					break;
-				}
-			}
-		} catch (Exception e) {
-			Log.e("setHeaderTextAndScroll", e.getMessage());
-		}
-		
+
+	/**
+	 * 绘制背景色
+	 * @param color
+	 */
+	public void drawBackground(@ColorRes int color) {
+		mBgColor = ContextCompat.getColor(context, color);
+		postInvalidate();
 	}
-	
-	@Override
-	public boolean onTouchEvent(MotionEvent event) {
-		switch (event.getAction()) {
-		case MotionEvent.ACTION_DOWN:{
-			if(header == null){
-				header = (TextView) ((View)getParent()).findViewById(R.id.floating_header);
-			}
-			setHeaderTextAndscroll(event);
-			header.setVisibility(View.VISIBLE);
-			setBackgroundResource(R.drawable.ease_sidebar_background_pressed);
-			return true;
-		}
-		case MotionEvent.ACTION_MOVE:{
-			setHeaderTextAndscroll(event);
-			return true;
-		}
-		case MotionEvent.ACTION_UP:
-			header.setVisibility(View.INVISIBLE);
-			setBackgroundColor(Color.TRANSPARENT);
-			return true;
-		case MotionEvent.ACTION_CANCEL:
-			header.setVisibility(View.INVISIBLE);
-			setBackgroundColor(Color.TRANSPARENT);
-			return true;
-		}
-		return super.onTouchEvent(event);
+
+	public void drawBackgroundDrawable(@DrawableRes int drawableId) {
+		setBackground(ContextCompat.getDrawable(context, drawableId));
+	}
+
+	public void drawBackgroundDrawable( Drawable drawable) {
+		setBackground(drawable);
+	}
+
+	/**
+	 * set touch event listener
+	 * @param listener
+	 */
+	public void setOnTouchEventListener(OnTouchEventListener listener) {
+		this.mListener = listener;
+	}
+
+	public interface OnTouchEventListener {
+		/**
+		 * 按下的监听
+		 * @param event
+		 * @param pointer
+		 */
+		void onActionDown(MotionEvent event, String pointer);
+
+		/**
+		 * 移动的监听
+		 * @param event
+		 * @param pointer
+		 */
+		void onActionMove(MotionEvent event, String pointer);
+
+		/**
+		 * 抬起的监听
+		 * @param event
+		 */
+		void onActionUp(MotionEvent event);
 	}
 
 }
