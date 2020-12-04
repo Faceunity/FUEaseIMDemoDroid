@@ -1,6 +1,8 @@
 package com.hyphenate.easeui.ui;
 
+import android.net.Uri;
 import android.os.Bundle;
+import android.text.TextUtils;
 import android.widget.ProgressBar;
 import android.widget.Toast;
 
@@ -10,17 +12,22 @@ import com.hyphenate.chat.EMClient;
 import com.hyphenate.chat.EMFileMessageBody;
 import com.hyphenate.chat.EMMessage;
 import com.hyphenate.easeui.R;
-import com.hyphenate.easeui.model.EaseCompat;
+import com.hyphenate.easeui.utils.EaseCompat;
+import com.hyphenate.easeui.ui.base.EaseBaseActivity;
+import com.hyphenate.util.EMLog;
+import com.hyphenate.util.UriUtils;
 
 import java.io.File;
 
 public class EaseShowNormalFileActivity extends EaseBaseActivity {
+    private static final String TAG = EaseShowNormalFileActivity.class.getSimpleName();
 	private ProgressBar progressBar;
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.ease_activity_show_file);
+        setFitSystemForTheme(true, R.color.transparent, true);
 		progressBar = (ProgressBar) findViewById(R.id.progressBar);
 
 		final EMMessage message = getIntent().getParcelableExtra("msg");
@@ -29,14 +36,13 @@ public class EaseShowNormalFileActivity extends EaseBaseActivity {
             finish();
             return;
         }
-        final File file = new File(((EMFileMessageBody)message.getBody()).getLocalUrl());
-
         message.setMessageStatusCallback(new EMCallBack() {
             @Override
             public void onSuccess() {
                 runOnUiThread(new Runnable() {
                     public void run() {
-                        EaseCompat.openFile(file, EaseShowNormalFileActivity.this);
+                        EaseCompat.openFile(EaseShowNormalFileActivity.this,
+                                ((EMFileMessageBody) message.getBody()).getLocalUri());
                         finish();
                     }
                 });
@@ -47,8 +53,7 @@ public class EaseShowNormalFileActivity extends EaseBaseActivity {
             public void onError(final int code, final String error) {
                 runOnUiThread(new Runnable() {
                     public void run() {
-                        if(file != null && file.exists()&&file.isFile())
-                            file.delete();
+                        EaseCompat.deleteFile(EaseShowNormalFileActivity.this, ((EMFileMessageBody) message.getBody()).getLocalUri());
                         String str4 = getResources().getString(R.string.Failed_to_download_file);
                         if (code == EMError.FILE_NOT_FOUND) {
                             str4 = getResources().getString(R.string.File_expired);

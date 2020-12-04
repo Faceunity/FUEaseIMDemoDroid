@@ -19,19 +19,13 @@
 
         <com.hyphenate.easeui.widget.EaseImageView
             android:id="@+id/iv_userhead"
-            android:layout_width="@dimen/size_avatar"
-            android:layout_height="@dimen/size_avatar"
-            android:layout_alignParentLeft="true"
-            android:layout_alignParentTop="true"
-            android:layout_marginLeft="@dimen/margin_chat_activity"
-            android:src="@drawable/ease_default_avatar"
-            android:scaleType="fitXY" />
+            style="@style/ease_row_receive_iv_userhead_style"/>
 
         <RelativeLayout
             android:id="@+id/bubble"
             android:layout_width="wrap_content" 
             android:layout_height="wrap_content"
-            android:layout_marginLeft="@dimen/margin_chat_activity"
+            android:layout_marginLeft="@dimen/ease_chat_bubble_margin_avatar"
             android:layout_toRightOf="@id/iv_userhead"
             android:layout_below="@+id/tv_userid"
              >

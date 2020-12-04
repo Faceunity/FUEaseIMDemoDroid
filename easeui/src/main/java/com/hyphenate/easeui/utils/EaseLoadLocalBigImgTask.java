@@ -21,7 +21,6 @@ import android.view.View;
 import android.widget.ProgressBar;
 
 import com.hyphenate.easeui.R;
-import com.hyphenate.easeui.model.EaseImageCache;
 import com.hyphenate.easeui.widget.photoview.EasePhotoView;
 import com.hyphenate.util.ImageUtils;
 
@@ -34,8 +33,8 @@ public class EaseLoadLocalBigImgTask extends AsyncTask<Void, Void, Bitmap> {
 	private int height;
 	private Context context;
 
-	public EaseLoadLocalBigImgTask(Context context,String path, EasePhotoView photoView,
-			ProgressBar pb, int width, int height) {
+	public EaseLoadLocalBigImgTask(Context context, String path, EasePhotoView photoView,
+                                   ProgressBar pb, int width, int height) {
 		this.context = context;
 		this.path = path;
 		this.photoView = photoView;

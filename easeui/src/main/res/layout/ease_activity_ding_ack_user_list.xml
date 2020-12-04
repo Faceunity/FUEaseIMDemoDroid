@@ -8,13 +8,29 @@
     <com.hyphenate.easeui.widget.EaseTitleBar
         android:id="@+id/title_bar"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        hyphenate:titleBarLeftImage="@drawable/ease_mm_title_back" />
+        android:layout_height="44dp"
+        hyphenate:titleBarDisplayHomeAsUpEnabled="true"/>
 
-    <ListView
-        android:id="@+id/list_view"
+    <FrameLayout
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:listSelector="#00000000" />
+        android:layout_height="match_parent">
+
+        <ListView
+            android:id="@+id/list_view"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:listSelector="#00000000" />
+
+        <TextView
+            android:id="@+id/tv_no_data"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:text="暂无回执信息"
+            android:gravity="center"
+            android:textSize="16sp"
+            android:textColor="@color/gray_normal"
+            />
+
+    </FrameLayout>
 
 </LinearLayout>

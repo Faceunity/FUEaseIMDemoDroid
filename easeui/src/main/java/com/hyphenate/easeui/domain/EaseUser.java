@@ -1,49 +1,74 @@
-/**
- * Copyright (C) 2016 Hyphenate Inc. All rights reserved.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *     http://www.apache.org/licenses/LICENSE-2.0
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
 package com.hyphenate.easeui.domain;
 
-import com.hyphenate.chat.EMContact;
-import com.hyphenate.easeui.utils.EaseCommonUtils;
+import android.os.Parcel;
+import android.os.Parcelable;
+import android.text.TextUtils;
 
-public class EaseUser extends EMContact {
-    
+import androidx.annotation.NonNull;
+
+import com.hyphenate.util.HanziToPinyin;
+
+import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.List;
+
+public class EaseUser implements Serializable {
     /**
-     * initial letter for nickname
+     * \~chinese
+     * 此用户的唯一标示名, 即用户的环信id
+     *
+     * \~english
+     * the user name assigned from app, which should be unique in the application
      */
-	protected String initialLetter;
-	/**
-	 * avatar of the user
-	 */
-	protected String avatar;
-	
-	public EaseUser(String username){
-	    this.username = username;
-	}
+    @NonNull
+    private String username;
+    private String nickname;
+    /**
+     * initial letter from nickname
+     */
+    private String initialLetter;
+    /**
+     * user's avatar
+     */
+    private String avatar;
 
-	public String getInitialLetter() {
-	    if(initialLetter == null){
-            EaseCommonUtils.setUserInitialLetter(this);
+    /**
+     * contact 0: normal, 1: black
+     */
+    private int contact;
+
+    @NonNull
+    public String getUsername() {
+        return username;
+    }
+
+    public void setUsername(@NonNull String  username) {
+        this.username = username;
+    }
+
+    public String getNickname() {
+        return nickname == null ? username : nickname;
+    }
+
+    public void setNickname(String nickname) {
+        this.nickname = nickname;
+    }
+
+    public String getInitialLetter() {
+        if(initialLetter == null) {
+            if(!TextUtils.isEmpty(nickname)) {
+                return getInitialLetter(nickname);
+            }
+            return getInitialLetter(username);
         }
-		return initialLetter;
-	}
+        return initialLetter;
+    }
 
-	public void setInitialLetter(String initialLetter) {
-		this.initialLetter = initialLetter;
-	}
+    public void setInitialLetter(String initialLetter) {
+        this.initialLetter = initialLetter;
+    }
 
-
-	public String getAvatar() {
+    public String getAvatar() {
         return avatar;
     }
 
@@ -51,21 +76,77 @@ public class EaseUser extends EMContact {
         this.avatar = avatar;
     }
 
+    public int getContact() {
+        return contact;
+    }
+
+    public void setContact(int contact) {
+        this.contact = contact;
+    }
+
+    public String getInitialLetter(String name) {
+        return new GetInitialLetter().getLetter(name);
+    }
+
+    public EaseUser() {
+    }
+
+    public EaseUser(@NonNull String username) {
+        this.username = username;
+    }
+
     @Override
-	public int hashCode() {
-		return 17 * getUsername().hashCode();
-	}
+    public String toString() {
+        return "EaseUser{" +
+                "username='" + username + '\'' +
+                ", nickname='" + nickname + '\'' +
+                ", initialLetter='" + initialLetter + '\'' +
+                ", avatar='" + avatar + '\'' +
+                ", contact=" + contact +
+                '}';
+    }
 
-	@Override
-	public boolean equals(Object o) {
-		if (o == null || !(o instanceof EaseUser)) {
-			return false;
-		}
-		return getUsername().equals(((EaseUser) o).getUsername());
-	}
+    public static List<EaseUser> parse(List<String> ids) {
+        List<EaseUser> users = new ArrayList<>();
+        if(ids == null || ids.isEmpty()) {
+            return users;
+        }
+        EaseUser user;
+        for (String id : ids) {
+            user = new EaseUser(id);
+            users.add(user);
+        }
+        return users;
+    }
 
-	@Override
-	public String toString() {
-		return nick == null ? username : nick;
-	}
+    public class GetInitialLetter {
+        private String defaultLetter = "#";
+
+        /**
+         * 获取首字母
+         * @param name
+         * @return
+         */
+        public String getLetter(String name) {
+            if(TextUtils.isEmpty(name)) {
+                return defaultLetter;
+            }
+            char char0 = name.toLowerCase().charAt(0);
+            if(Character.isDigit(char0)) {
+                return defaultLetter;
+            }
+            ArrayList<HanziToPinyin.Token> l = HanziToPinyin.getInstance().get(name.substring(0, 1));
+            if(l != null && !l.isEmpty() && l.get(0).target.length() > 0) {
+                HanziToPinyin.Token token = l.get(0);
+                String letter = token.target.substring(0, 1).toUpperCase();
+                char c = letter.charAt(0);
+                if(c < 'A' || c > 'Z') {
+                    return defaultLetter;
+                }
+                return letter;
+            }
+            return defaultLetter;
+        }
+    }
+
 }

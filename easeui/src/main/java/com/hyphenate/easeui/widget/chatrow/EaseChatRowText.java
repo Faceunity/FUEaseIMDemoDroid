@@ -3,30 +3,30 @@ package com.hyphenate.easeui.widget.chatrow;
 import android.content.Context;
 import android.text.Spannable;
 import android.view.View;
-import android.widget.BaseAdapter;
 import android.widget.TextView;
 import android.widget.TextView.BufferType;
 
 import com.hyphenate.chat.EMMessage;
 import com.hyphenate.chat.EMTextMessageBody;
 import com.hyphenate.easeui.R;
-import com.hyphenate.easeui.model.EaseDingMessageHelper;
+import com.hyphenate.easeui.manager.EaseDingMessageHelper;
 import com.hyphenate.easeui.utils.EaseSmileUtils;
 
-import java.util.List;
-
-public class EaseChatRowText extends EaseChatRow{
-
+public class EaseChatRowText extends EaseChatRow {
 	private TextView contentView;
 
-    public EaseChatRowText(Context context, EMMessage message, int position, BaseAdapter adapter) {
+    public EaseChatRowText(Context context, boolean isSender) {
+		super(context, isSender);
+	}
+
+    public EaseChatRowText(Context context, EMMessage message, int position, Object adapter) {
 		super(context, message, position, adapter);
 	}
 
 	@Override
 	protected void onInflateView() {
-		inflater.inflate(message.direct() == EMMessage.Direct.RECEIVE ?
-				R.layout.ease_row_received_message : R.layout.ease_row_sent_message, this);
+		inflater.inflate(!isSender ? R.layout.ease_row_received_message
+                : R.layout.ease_row_sent_message, this);
 	}
 
 	@Override
@@ -43,43 +43,13 @@ public class EaseChatRowText extends EaseChatRow{
     }
 
     @Override
-    protected void onViewUpdate(EMMessage msg) {
-        switch (msg.status()) {
-            case CREATE:
-                onMessageCreate();
-                break;
-            case SUCCESS:
-                onMessageSuccess();
-                break;
-            case FAIL:
-                onMessageError();
-                break;
-            case INPROGRESS:
-                onMessageInProgress();
-                break;
-        }
+    protected void onMessageCreate() {
+        setStatus(View.VISIBLE, View.GONE);
     }
 
-    public void onAckUserUpdate(final int count) {
-        if (ackedView != null) {
-            ackedView.post(new Runnable() {
-                @Override
-                public void run() {
-                    ackedView.setVisibility(VISIBLE);
-                    ackedView.setText(String.format(getContext().getString(R.string.group_ack_read_count), count));
-                }
-            });
-        }
-    }
-
-    private void onMessageCreate() {
-        progressBar.setVisibility(View.VISIBLE);
-        statusView.setVisibility(View.GONE);
-    }
-
-    private void onMessageSuccess() {
-        progressBar.setVisibility(View.GONE);
-        statusView.setVisibility(View.GONE);
+    @Override
+    protected void onMessageSuccess() {
+        setStatus(View.GONE, View.GONE);
 
         // Show "1 Read" if this msg is a ding-type msg.
         if (EaseDingMessageHelper.get().isDingMessage(message) && ackedView != null) {
@@ -92,21 +62,39 @@ public class EaseChatRowText extends EaseChatRow{
         EaseDingMessageHelper.get().setUserUpdateListener(message, userUpdateListener);
     }
 
-    private void onMessageError() {
-        progressBar.setVisibility(View.GONE);
-        statusView.setVisibility(View.VISIBLE);
+    @Override
+    protected void onMessageError() {
+        setStatus(View.GONE, View.VISIBLE);
     }
 
-    private void onMessageInProgress() {
-        progressBar.setVisibility(View.VISIBLE);
-        statusView.setVisibility(View.GONE);
+    @Override
+    protected void onMessageInProgress() {
+        setStatus(View.VISIBLE, View.GONE);
     }
 
-    private EaseDingMessageHelper.IAckUserUpdateListener userUpdateListener =
-            new EaseDingMessageHelper.IAckUserUpdateListener() {
-                @Override
-                public void onUpdate(List<String> list) {
-                    onAckUserUpdate(list.size());
-                }
-            };
+    /**
+     * set progress and status view visible or gone
+     * @param progressVisible
+     * @param statusVisible
+     */
+    private void setStatus(int progressVisible, int statusVisible) {
+        if(progressBar != null) {
+            progressBar.setVisibility(progressVisible);
+        }
+        if(statusView != null) {
+            statusView.setVisibility(statusVisible);
+        }
+    }
+
+    private EaseDingMessageHelper.IAckUserUpdateListener userUpdateListener = list -> onAckUserUpdate(list.size());
+
+    public void onAckUserUpdate(final int count) {
+        if(ackedView == null) {
+            return;
+        }
+        ackedView.post(()->{
+            ackedView.setVisibility(VISIBLE);
+            ackedView.setText(String.format(getContext().getString(R.string.group_ack_read_count), count));
+        });
+    }
 }

@@ -1,108 +1,74 @@
 package com.hyphenate.easeui;
 
-import android.app.Activity;
 import android.app.ActivityManager;
 import android.content.Context;
-import android.content.pm.PackageManager;
 import android.util.Log;
 
-import com.hyphenate.EMMessageListener;
 import com.hyphenate.chat.EMClient;
-import com.hyphenate.chat.EMGroupReadAck;
 import com.hyphenate.chat.EMMessage;
 import com.hyphenate.chat.EMOptions;
 import com.hyphenate.easeui.domain.EaseAvatarOptions;
-import com.hyphenate.easeui.domain.EaseEmojicon;
-import com.hyphenate.easeui.domain.EaseUser;
-import com.hyphenate.easeui.model.EaseAtMessageHelper;
+import com.hyphenate.easeui.manager.EaseChatPresenter;
 import com.hyphenate.easeui.model.EaseNotifier;
-import com.hyphenate.easeui.model.EaseDingMessageHelper;
+import com.hyphenate.easeui.provider.EaseEmojiconInfoProvider;
+import com.hyphenate.easeui.provider.EaseSettingsProvider;
+import com.hyphenate.easeui.provider.EaseUserProfileProvider;
 
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-
-public final class EaseUI {
+public class EaseUI {
     private static final String TAG = EaseUI.class.getSimpleName();
+    private static EaseUI instance;
 
-    /**
-     * the global EaseUI instance
-     */
-    private static EaseUI instance = null;
-    
-    /**
-     * user profile provider
-     */
-    private EaseUserProfileProvider userProvider;
-    
     private EaseSettingsProvider settingsProvider;
 
+    private EaseEmojiconInfoProvider mEmojiconInfoProvider;
+
+    private EaseUserProfileProvider userProvider;
+    /**
+     * chat avatar options which we can easily control the style
+     */
     private EaseAvatarOptions avatarOptions;
-    
     /**
      * application context
      */
     private Context appContext = null;
-    
-    /**
-     * init flag: test if the sdk has been inited before, we don't need to init again
-     */
-    private boolean sdkInited = false;
-    
     /**
      * the notifier
      */
     private EaseNotifier notifier = null;
-    
-    /**
-     * save foreground Activity which registered eventlistener
-     */
-    private List<Activity> activityList = new ArrayList<Activity>();
-    
-    public void pushActivity(Activity activity){
-        if(!activityList.contains(activity)){
-            activityList.add(0,activity); 
-        }
-    }
-    
-    public void popActivity(Activity activity){
-        activityList.remove(activity);
-    }
 
-    public Activity getTopActivity(){
-        return activityList.get(0);
-    }
-    
-    private EaseUI(){}
-    
     /**
-     * get instance of EaseUI
-     * @return
+     * init flag: test if the sdk has been inited before, we don't need to init again
      */
-    public synchronized static EaseUI getInstance(){
-        if(instance == null){
-            instance = new EaseUI();
+    private boolean sdkInited = false;
+
+    public boolean isVoiceCalling;
+    public boolean isVideoCalling;
+    private EaseChatPresenter presenter;
+
+    private EaseUI() {}
+
+    public static EaseUI getInstance() {
+        if(instance == null) {
+            synchronized (EaseUI.class) {
+                if(instance == null) {
+                    instance = new EaseUI();
+                }
+            }
         }
         return instance;
     }
-    
+
     /**
-     *this function will initialize the SDK and easeUI kit
-     * 
-     * @return boolean true if caller can continue to call SDK related APIs after calling onInit, otherwise false.
-     * 
+     * 针对应用开启其他进程时，application会执行onCreate的情况，需要检查是否当前是在主进程
+     * SDK只在主进程进行初始化一次
      * @param context
-     * @param options use default if options is null
      * @return
      */
-    public synchronized boolean init(Context context, EMOptions options){
-        if(sdkInited){
+    public synchronized boolean init(Context context, EMOptions options) {
+        if(sdkInited) {
             return true;
         }
-        appContext = context;
-        
-
+        appContext = context.getApplicationContext();
         // if there is application has remote service, application:onCreate() maybe called twice
         // this check is to make sure SDK will initialized only once
         // return if process name is not application's name since the package name is the default process name
@@ -110,23 +76,16 @@ public final class EaseUI {
             Log.e(TAG, "enter the service process!");
             return false;
         }
-        if(options == null){
-            EMClient.getInstance().init(context, initChatOptions());
-        }else{
-            EMClient.getInstance().init(context, options);
+        if(options == null) {
+            options = initChatOptions();
         }
-        
+        EMClient.getInstance().init(context, options);
         initNotifier();
-        registerMessageListener();
-        
-        if(settingsProvider == null){
-            settingsProvider = new DefaultSettingsProvider();
-        }
-        
+        presenter = new EaseChatPresenter();
+        presenter.attachApp(appContext);
         sdkInited = true;
         return true;
     }
-
 
     protected EMOptions initChatOptions(){
         Log.d(TAG, "init HuanXin Options");
@@ -138,93 +97,15 @@ public final class EaseUI {
         options.setRequireAck(true);
         // set if need delivery ack
         options.setRequireDeliveryAck(false);
-        
+
         return options;
     }
-    
-    void initNotifier(){
-        notifier = new EaseNotifier(appContext);
-    }
-    
-    private void registerMessageListener() {
-        EMClient.getInstance().chatManager().addMessageListener(new EMMessageListener() {
-            
-            @Override
-            public void onMessageReceived(List<EMMessage> messages) {
-                EaseAtMessageHelper.get().parseMessages(messages);
-            }
-            @Override
-            public void onMessageRead(List<EMMessage> messages) {
-                
-            }
-            @Override
-            public void onMessageDelivered(List<EMMessage> messages) {
-            }
 
-            @Override
-            public void onMessageRecalled(List<EMMessage> messages) {
-
-            }
-
-            @Override
-            public void onMessageChanged(EMMessage message, Object change) {
-                
-            }
-            @Override
-            public void onCmdMessageReceived(List<EMMessage> messages) {
-
-            }
-
-            @Override
-            public void onGroupMessageRead(List<EMGroupReadAck> groupReadAcks) {
-                for (EMGroupReadAck ack: groupReadAcks) {
-                    EaseDingMessageHelper.get().handleGroupReadAck(ack);
-                }
-            }
-        });
-    }
-    
-    public EaseNotifier getNotifier(){
-        return notifier;
-    }
-    
-    public boolean hasForegroundActivies(){
-        return activityList.size() != 0;
-    }
-
-
-    public void setAvatarOptions(EaseAvatarOptions avatarOptions) {
-        this.avatarOptions = avatarOptions;
-    }
-    public EaseAvatarOptions getAvatarOptions(){
-        return  avatarOptions;
-    }
-
-    
     /**
-     * set user profile provider
-     * @param provider
-     */
-    public void setUserProfileProvider(EaseUserProfileProvider userProvider){
-        this.userProvider = userProvider;
-    }
-    
-    /**
-     * get user profile provider
+     * 判断是否在主进程
+     * @param context
      * @return
      */
-    public EaseUserProfileProvider getUserProfileProvider(){
-        return userProvider;
-    }
-    
-    public void setSettingsProvider(EaseSettingsProvider settingsProvider){
-        this.settingsProvider = settingsProvider;
-    }
-    
-    public EaseSettingsProvider getSettingsProvider(){
-        return settingsProvider;
-    }
-
     public boolean isMainProcess(Context context) {
         int pid = android.os.Process.myPid();
         ActivityManager activityManager = (ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
@@ -235,98 +116,123 @@ public final class EaseUI {
         }
         return false;
     }
-    
-    /**
-     * User profile provider
-     * @author wei
-     *
-     */
-    public interface EaseUserProfileProvider {
-        /**
-         * return EaseUser for input username
-         * @param username
-         * @return
-         */
-        EaseUser getUser(String username);
+
+    private void initNotifier(){
+        notifier = new EaseNotifier(appContext);
     }
-    
-    /**
-     * Emojicon provider
-     *
-     */
-    public interface EaseEmojiconInfoProvider {
-        /**
-         * return EaseEmojicon for input emojiconIdentityCode
-         * @param emojiconIdentityCode
-         * @return
-         */
-        EaseEmojicon getEmojiconInfo(String emojiconIdentityCode);
-        
-        /**
-         * get Emojicon map, key is the text of emoji, value is the resource id or local path of emoji icon(can't be URL on internet)
-         * @return
-         */
-        Map<String, Object> getTextEmojiconMapping();
+
+    public void addChatPresenter(EaseChatPresenter presenter) {
+        this.presenter = presenter;
+        this.presenter.attachApp(appContext);
     }
-    
-    private EaseEmojiconInfoProvider emojiconInfoProvider;
-    
+
+    public EaseChatPresenter getChatPresenter() {
+        return presenter;
+    }
+
     /**
-     * Emojicon provider
+     * get emojicon provider
      * @return
      */
-    public EaseEmojiconInfoProvider getEmojiconInfoProvider(){
-        return emojiconInfoProvider;
+    public EaseEmojiconInfoProvider getEmojiconInfoProvider() {
+        return mEmojiconInfoProvider;
     }
-    
+
     /**
-     * set Emojicon provider
+     * set emojicon provider
      * @param emojiconInfoProvider
+     * @return
      */
-    public void setEmojiconInfoProvider(EaseEmojiconInfoProvider emojiconInfoProvider){
-        this.emojiconInfoProvider = emojiconInfoProvider;
+    public EaseUI setEmojiconInfoProvider(EaseEmojiconInfoProvider emojiconInfoProvider) {
+        mEmojiconInfoProvider = emojiconInfoProvider;
+        return this;
     }
-    
+
     /**
-     * new message options provider
-     *
+     * get settings provider
+     * @return
      */
-    public interface EaseSettingsProvider {
-        boolean isMsgNotifyAllowed(EMMessage message);
-        boolean isMsgSoundAllowed(EMMessage message);
-        boolean isMsgVibrateAllowed(EMMessage message);
-        boolean isSpeakerOpened();
+    public EaseSettingsProvider getSettingsProvider() {
+        if(settingsProvider == null) {
+            settingsProvider = getDefaultSettingsProvider();
+        }
+        return settingsProvider;
     }
-    
+
     /**
-     * default settings provider
-     *
+     * set settting provider
+     * @param settingsProvider
+     * @return
      */
-    protected class DefaultSettingsProvider implements EaseSettingsProvider{
-
-        @Override
-        public boolean isMsgNotifyAllowed(EMMessage message) {
-            // TODO Auto-generated method stub
-            return true;
-        }
-
-        @Override
-        public boolean isMsgSoundAllowed(EMMessage message) {
-            return true;
-        }
-
-        @Override
-        public boolean isMsgVibrateAllowed(EMMessage message) {
-            return true;
-        }
-
-        @Override
-        public boolean isSpeakerOpened() {
-            return true;
-        } 
+    public EaseUI setSettingsProvider(EaseSettingsProvider settingsProvider) {
+        this.settingsProvider = settingsProvider;
+        return this;
     }
-    
-    public Context getContext(){
+
+    /**
+     * get user profile provider
+     * @return
+     */
+    public EaseUserProfileProvider getUserProvider() {
+        return userProvider;
+    }
+
+    public EaseNotifier getNotifier(){
+        return notifier;
+    }
+
+    /**
+     * set user profile provider
+     * @param userProvider
+     * @return
+     */
+    public EaseUI setUserProvider(EaseUserProfileProvider userProvider) {
+        this.userProvider = userProvider;
+        return this;
+    }
+
+    /**
+     * get avatar options
+     * @return
+     */
+    public EaseAvatarOptions getAvatarOptions() {
+        return avatarOptions;
+    }
+
+    /**
+     * set avatar options
+     * @param avatarOptions
+     */
+    public EaseUI setAvatarOptions(EaseAvatarOptions avatarOptions) {
+        this.avatarOptions = avatarOptions;
+        return this;
+    }
+
+    public Context getContext() {
         return appContext;
+    }
+
+    private EaseSettingsProvider getDefaultSettingsProvider() {
+        return new EaseSettingsProvider() {
+            @Override
+            public boolean isMsgNotifyAllowed(EMMessage message) {
+                return false;
+            }
+
+            @Override
+            public boolean isMsgSoundAllowed(EMMessage message) {
+                return false;
+            }
+
+            @Override
+            public boolean isMsgVibrateAllowed(EMMessage message) {
+                return false;
+            }
+
+            @Override
+            public boolean isSpeakerOpened() {
+                return false;
+            }
+        };
     }
 }

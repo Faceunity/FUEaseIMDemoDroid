@@ -1,45 +1,54 @@
 package com.hyphenate.easeui.widget.chatrow;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
-import android.content.Intent;
 import android.graphics.Bitmap;
+import android.net.Uri;
 import android.os.AsyncTask;
+import android.os.Build;
+import android.text.TextUtils;
 import android.view.View;
-import android.widget.BaseAdapter;
+import android.view.ViewGroup;
 import android.widget.ImageView;
 import android.widget.TextView;
 
 import com.hyphenate.chat.EMClient;
 import com.hyphenate.chat.EMFileMessageBody;
 import com.hyphenate.chat.EMMessage;
-import com.hyphenate.chat.EMMessage.ChatType;
 import com.hyphenate.chat.EMVideoMessageBody;
 import com.hyphenate.easeui.R;
-import com.hyphenate.easeui.model.EaseImageCache;
-import com.hyphenate.easeui.ui.EaseShowVideoActivity;
 import com.hyphenate.easeui.utils.EaseCommonUtils;
+import com.hyphenate.easeui.utils.EaseImageCache;
+import com.hyphenate.easeui.utils.EaseImageUtils;
 import com.hyphenate.util.DateUtils;
 import com.hyphenate.util.EMLog;
 import com.hyphenate.util.ImageUtils;
 import com.hyphenate.util.TextFormater;
+import com.hyphenate.util.UriUtils;
 
 import java.io.File;
+import java.io.IOException;
 
-public class EaseChatRowVideo extends EaseChatRowFile{
-    private static final String TAG = "EaseChatRowVideo";
+public class EaseChatRowVideo extends EaseChatRowFile {
+    private static final String TAG = EaseChatRowVideo.class.getSimpleName();
 
     private ImageView imageView;
     private TextView sizeView;
     private TextView timeLengthView;
+    private ImageView playView;
 
-    public EaseChatRowVideo(Context context, EMMessage message, int position, BaseAdapter adapter) {
+    public EaseChatRowVideo(Context context, boolean isSender) {
+        super(context, isSender);
+    }
+
+    public EaseChatRowVideo(Context context, EMMessage message, int position, Object adapter) {
         super(context, message, position, adapter);
     }
 
 	@Override
 	protected void onInflateView() {
-		inflater.inflate(message.direct() == EMMessage.Direct.RECEIVE ?
-				R.layout.ease_row_received_video : R.layout.ease_row_sent_video, this);
+		inflater.inflate(!isSender ? R.layout.ease_row_received_video
+                : R.layout.ease_row_sent_video, this);
 	}
 
 	@Override
@@ -47,19 +56,16 @@ public class EaseChatRowVideo extends EaseChatRowFile{
 	    imageView = ((ImageView) findViewById(R.id.chatting_content_iv));
         sizeView = (TextView) findViewById(R.id.chatting_size_iv);
         timeLengthView = (TextView) findViewById(R.id.chatting_length_iv);
-        ImageView playView = (ImageView) findViewById(R.id.chatting_status_btn);
+        playView = (ImageView) findViewById(R.id.chatting_status_btn);
         percentageView = (TextView) findViewById(R.id.percentage);
 	}
 
 	@Override
 	protected void onSetUpView() {
-	    EMVideoMessageBody videoBody = (EMVideoMessageBody) message.getBody();
-        String localThumb = videoBody.getLocalThumb();
+        EMVideoMessageBody videoBody = (EMVideoMessageBody) message.getBody();
+        Uri localThumb = videoBody.getLocalThumbUri();
 
-        if (localThumb != null) {
-
-            showVideoThumbView(localThumb, imageView, videoBody.getThumbnailUrl(), message);
-        }
+        showVideoThumbView(message);
         if (videoBody.getDuration() > 0) {
             String time = DateUtils.toTime(videoBody.getDuration());
             timeLengthView.setText(time);
@@ -71,10 +77,12 @@ public class EaseChatRowVideo extends EaseChatRowFile{
                 sizeView.setText(size);
             }
         } else {
-            if (videoBody.getLocalUrl() != null && new File(videoBody.getLocalUrl()).exists()) {
-                String size = TextFormater.getDataSize(new File(videoBody.getLocalUrl()).length());
-                sizeView.setText(size);
-            }
+            long videoFileLength = videoBody.getVideoFileLength();
+            sizeView.setText(TextFormater.getDataSize(videoFileLength));
+//            if (videoBody.getLocalUrl() != null && new File(videoBody.getLocalUrl()).exists()) {
+//                String size = TextFormater.getDataSize(new File(videoBody.getLocalUrl()).length());
+//                sizeView.setText(size);
+//            }
         }
 
         EMLog.d(TAG,  "video thumbnailStatus:" + videoBody.thumbnailDownloadStatus());
@@ -86,14 +94,14 @@ public class EaseChatRowVideo extends EaseChatRowFile{
                 // System.err.println("!!!! not back receive, show image directly");
                 imageView.setImageResource(R.drawable.ease_default_image);
                 if (localThumb != null) {
-                    showVideoThumbView(localThumb, imageView, videoBody.getThumbnailUrl(), message);
+                    showVideoThumbView(message);
                 }
             }
             return;
         }else{
             if (videoBody.thumbnailDownloadStatus() == EMFileMessageBody.EMDownloadStatus.DOWNLOADING ||
                     videoBody.thumbnailDownloadStatus() == EMFileMessageBody.EMDownloadStatus.PENDING ||
-                        videoBody.thumbnailDownloadStatus() == EMFileMessageBody.EMDownloadStatus.FAILED) {
+                    videoBody.thumbnailDownloadStatus() == EMFileMessageBody.EMDownloadStatus.FAILED) {
                 progressBar.setVisibility(View.INVISIBLE);
                 percentageView.setVisibility(View.INVISIBLE);
                 imageView.setImageResource(R.drawable.ease_default_image);
@@ -101,61 +109,25 @@ public class EaseChatRowVideo extends EaseChatRowFile{
                 progressBar.setVisibility(View.GONE);
                 percentageView.setVisibility(View.GONE);
                 imageView.setImageResource(R.drawable.ease_default_image);
-                showVideoThumbView(localThumb, imageView, videoBody.getThumbnailUrl(), message);
+                showVideoThumbView(message);
             }
         }
 	}
 
-
-
-	/**
+    /**
      * show video thumbnails
-     * 
-     * @param localThumb
-     *            local path for thumbnail
-     * @param iv
-     * @param thumbnailUrl
-     *            Url on server for thumbnails
      * @param message
      */
-    private void showVideoThumbView(final String localThumb, final ImageView iv, String thumbnailUrl, final EMMessage message) {
-        // first check if the thumbnail image already loaded into cache
-        Bitmap bitmap = EaseImageCache.getInstance().get(localThumb);
-        if (bitmap != null) {
-            // thumbnail image is already loaded, reuse the drawable
-            iv.setImageBitmap(bitmap);
-        } else {
-            imageView.setImageResource(R.drawable.ease_default_image);
-            new AsyncTask<Void, Void, Bitmap>() {
+    @SuppressLint("StaticFieldLeak")
+    private void showVideoThumbView(final EMMessage message) {
+        ViewGroup.LayoutParams params = EaseImageUtils.showVideoThumb(context, imageView, message);
+        setBubbleView(params.width, params.height);
+    }
 
-                @Override
-                protected Bitmap doInBackground(Void... params) {
-                    if (new File(localThumb).exists()) {
-                        return ImageUtils.decodeScaleImage(localThumb, 160, 160);
-                    } else {
-                        return null;
-                    }
-                }
-                
-                @Override
-                protected void onPostExecute(Bitmap result) {
-                    super.onPostExecute(result);
-                    if (result != null) {
-                        EaseImageCache.getInstance().put(localThumb, result);
-                        iv.setImageBitmap(result);
-
-                    } else {
-                        if (message.status() == EMMessage.Status.FAIL) {
-                            if (EaseCommonUtils.isNetWorkConnected(activity)) {
-                                EMClient.getInstance().chatManager().downloadThumbnail(message);
-                            }
-                        }
-
-                    }
-                }
-            }.execute();
-        }
-        
+    private void setBubbleView(int width, int height) {
+        ViewGroup.LayoutParams params = bubbleLayout.getLayoutParams();
+        params.width = width;
+        params.height = height;
     }
 
 }

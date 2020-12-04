@@ -8,28 +8,30 @@ import android.widget.TextView;
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.request.RequestOptions;
 import com.hyphenate.chat.EMMessage;
-import com.hyphenate.easeui.EaseConstant;
-import com.hyphenate.easeui.R;
 import com.hyphenate.easeui.EaseUI;
+import com.hyphenate.easeui.R;
+import com.hyphenate.easeui.constants.EaseConstant;
 import com.hyphenate.easeui.domain.EaseEmojicon;
 
 /**
  * big emoji icons
  *
  */
-public class EaseChatRowBigExpression extends EaseChatRowText{
-
+public class EaseChatRowBigExpression extends EaseChatRowText {
     private ImageView imageView;
 
+    public EaseChatRowBigExpression(Context context, boolean isSender) {
+        super(context, isSender);
+    }
 
     public EaseChatRowBigExpression(Context context, EMMessage message, int position, BaseAdapter adapter) {
         super(context, message, position, adapter);
     }
-    
+
     @Override
     protected void onInflateView() {
-        inflater.inflate(message.direct() == EMMessage.Direct.RECEIVE ? 
-                R.layout.ease_row_received_bigexpression : R.layout.ease_row_sent_bigexpression, this);
+        inflater.inflate(!isSender ? R.layout.ease_row_received_bigexpression
+                : R.layout.ease_row_sent_bigexpression, this);
     }
 
     @Override
@@ -37,7 +39,6 @@ public class EaseChatRowBigExpression extends EaseChatRowText{
         percentageView = (TextView) findViewById(R.id.percentage);
         imageView = (ImageView) findViewById(R.id.image);
     }
-
 
     @Override
     public void onSetUpView() {
@@ -49,11 +50,11 @@ public class EaseChatRowBigExpression extends EaseChatRowText{
         if(emojicon != null){
             if(emojicon.getBigIcon() != 0){
 
-                Glide.with(activity).load(emojicon.getBigIcon())
+                Glide.with(context).load(emojicon.getBigIcon())
                         .apply(RequestOptions.placeholderOf(R.drawable.ease_default_expression))
                         .into(imageView);
             }else if(emojicon.getBigIconPath() != null){
-                Glide.with(activity).load(emojicon.getBigIconPath())
+                Glide.with(context).load(emojicon.getBigIconPath())
                         .apply(RequestOptions.placeholderOf(R.drawable.ease_default_expression))
                         .into(imageView);
             }else{

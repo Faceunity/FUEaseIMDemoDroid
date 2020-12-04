@@ -3,7 +3,6 @@ package com.hyphenate.easeui.widget.chatrow;
 import android.content.Context;
 import android.graphics.drawable.AnimationDrawable;
 import android.view.View;
-import android.widget.BaseAdapter;
 import android.widget.ImageView;
 import android.widget.TextView;
 
@@ -12,25 +11,29 @@ import com.hyphenate.chat.EMFileMessageBody;
 import com.hyphenate.chat.EMMessage;
 import com.hyphenate.chat.EMVoiceMessageBody;
 import com.hyphenate.easeui.R;
+import com.hyphenate.easeui.utils.EaseCommonUtils;
+import com.hyphenate.easeui.utils.EaseVoiceLengthUtils;
 import com.hyphenate.util.EMLog;
 
 public class EaseChatRowVoice extends EaseChatRowFile {
-    private static final String TAG = "EaseChatRowVoice";
-
+    private static final String TAG = EaseChatRowVoice.class.getSimpleName();
     private ImageView voiceImageView;
     private TextView voiceLengthView;
     private ImageView readStatusView;
-
     private AnimationDrawable voiceAnimation;
 
-    public EaseChatRowVoice(Context context, EMMessage message, int position, BaseAdapter adapter) {
+    public EaseChatRowVoice(Context context, boolean isSender) {
+        super(context, isSender);
+    }
+
+    public EaseChatRowVoice(Context context, EMMessage message, int position, Object adapter) {
         super(context, message, position, adapter);
     }
 
     @Override
     protected void onInflateView() {
-        inflater.inflate(message.direct() == EMMessage.Direct.RECEIVE ?
-                R.layout.ease_row_received_voice : R.layout.ease_row_sent_voice, this);
+        inflater.inflate(!isSender ? R.layout.ease_row_received_voice
+                : R.layout.ease_row_sent_voice, this);
     }
 
     @Override
@@ -44,7 +47,9 @@ public class EaseChatRowVoice extends EaseChatRowFile {
     protected void onSetUpView() {
         EMVoiceMessageBody voiceBody = (EMVoiceMessageBody) message.getBody();
         int len = voiceBody.getLength();
+        int padding = 0;
         if (len > 0) {
+            padding = EaseVoiceLengthUtils.getVoiceLength(getContext(), len);
             voiceLengthView.setText(voiceBody.getLength() + "\"");
             voiceLengthView.setVisibility(View.VISIBLE);
         } else {
@@ -52,8 +57,10 @@ public class EaseChatRowVoice extends EaseChatRowFile {
         }
         if (message.direct() == EMMessage.Direct.RECEIVE) {
             voiceImageView.setImageResource(R.drawable.ease_chatfrom_voice_playing);
+            voiceLengthView.setPadding(padding, 0, 0, 0);
         } else {
             voiceImageView.setImageResource(R.drawable.ease_chatto_voice_playing);
+            voiceLengthView.setPadding(0, 0, padding, 0);
         }
 
         if (message.direct() == EMMessage.Direct.RECEIVE) {

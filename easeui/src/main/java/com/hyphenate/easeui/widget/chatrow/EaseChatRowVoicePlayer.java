@@ -15,7 +15,7 @@ import java.io.IOException;
  */
 
 public class EaseChatRowVoicePlayer {
-    private static final String TAG = "ConcurrentMediaPlayer";
+    private static final String TAG = EaseChatRowVoicePlayer.class.getSimpleName();
 
     private static EaseChatRowVoicePlayer instance = null;
 
@@ -24,6 +24,7 @@ public class EaseChatRowVoicePlayer {
     private String playingId;
 
     private MediaPlayer.OnCompletionListener onCompletionListener;
+    private final Context baseContext;
 
     public static EaseChatRowVoicePlayer getInstance(Context context) {
         if (instance == null) {
@@ -66,7 +67,7 @@ public class EaseChatRowVoicePlayer {
         try {
             setSpeaker();
             EMVoiceMessageBody voiceBody = (EMVoiceMessageBody) msg.getBody();
-            mediaPlayer.setDataSource(voiceBody.getLocalUrl());
+            mediaPlayer.setDataSource(baseContext, voiceBody.getLocalUri());
             mediaPlayer.prepare();
             mediaPlayer.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
                 @Override
@@ -101,7 +102,7 @@ public class EaseChatRowVoicePlayer {
     }
 
     private EaseChatRowVoicePlayer(Context cxt) {
-        Context baseContext = cxt.getApplicationContext();
+        baseContext = cxt.getApplicationContext();
         audioManager = (AudioManager) baseContext.getSystemService(Context.AUDIO_SERVICE);
         mediaPlayer = new MediaPlayer();
     }
