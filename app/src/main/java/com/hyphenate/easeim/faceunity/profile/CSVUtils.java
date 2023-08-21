@@ -4,6 +4,7 @@ import android.app.ActivityManager;
 import android.content.Context;
 import android.os.Handler;
 import android.os.HandlerThread;
+import android.os.Looper;
 import android.os.Process;
 import android.util.Log;
 
@@ -40,12 +41,13 @@ public class CSVUtils {
     private volatile double mMemory;
     private long mSumRenderTimeInNano;
     private volatile long mTimestamp;
+    private HandlerThread handlerThread;
 
     public CSVUtils(Context context) {
         mActivityManager = (ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
         mCPUInfoUtil = new CPUInfoUtil(context);
 
-        HandlerThread handlerThread = new HandlerThread(TAG, Process.THREAD_PRIORITY_BACKGROUND);
+        handlerThread = new HandlerThread(TAG, Process.THREAD_PRIORITY_BACKGROUND);
         handlerThread.start();
         mHandler = new Handler(handlerThread.getLooper());
     }
@@ -132,22 +134,30 @@ public class CSVUtils {
 
     public void close() {
         Log.d(TAG, "close: ");
-        mHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                if (mStreamWriter != null) {
-                    try {
-                        mStreamWriter.close();
-                        mStreamWriter = null;
-                    } catch (IOException e) {
-                        Log.e(TAG, "close: ", e);
-                    }
+        if (handlerThread ==null) {
+            return;
+        }
+
+        mHandler.removeCallbacksAndMessages(0);
+        mHandler.post(() -> {
+            if (mStreamWriter != null) {
+                try {
+                    mStreamWriter.close();
+                    mStreamWriter = null;
+                } catch (IOException e) {
+                    Log.e(TAG, "close: ", e);
                 }
             }
         });
-        mHandler.getLooper().quitSafely();
-        mHandler = null;
-        mCPUInfoUtil.close();
+
+        handlerThread.quitSafely();
+        try {
+            handlerThread.join();
+            handlerThread = null;
+            mHandler = null;
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
     }
 
     public double getCpuUsed() {

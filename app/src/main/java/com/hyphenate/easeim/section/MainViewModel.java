@@ -31,6 +31,7 @@ public class MainViewModel extends AndroidViewModel {
 
     /**
      * 设置可见的fragment
+     *
      * @param title
      */
     public void setVisibleFragment(Integer title) {
@@ -54,14 +55,15 @@ public class MainViewModel extends AndroidViewModel {
 
     /**
      * 获取未读消息数目
+     *
      * @param count
      * @return
      */
     private String getUnreadCount(int count) {
-        if(count <= 0) {
+        if (count <= 0) {
             return null;
         }
-        if(count > 99) {
+        if (count > 99) {
             return "99+";
         }
         return String.valueOf(count);

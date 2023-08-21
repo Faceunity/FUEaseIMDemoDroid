@@ -5,6 +5,7 @@ buildscript {
         google()
         jcenter()
         maven {url 'http://developer.huawei.com/repo/'}
+        maven { url 'http://maven.faceunity.com/repository/maven-public/' }
     }
     dependencies {
         classpath 'com.android.tools.build:gradle:3.5.2'
@@ -25,6 +26,7 @@ allprojects {
         google()
         jcenter()
         maven { url 'http://developer.huawei.com/repo'}
+        maven { url 'https://maven.faceunity.com/repository/maven-public/' }
     }
 }
 

@@ -36,7 +36,7 @@ import com.hyphenate.easeim.common.constant.DemoConstant;
 import com.hyphenate.easeim.common.livedatas.LiveDataBus;
 import com.hyphenate.easeim.common.manager.FloatWindowManager;
 import com.hyphenate.easeim.common.utils.PreferenceManager;
-import com.hyphenate.easeim.faceunity.CameraRenderer;
+import com.hyphenate.easeim.faceunity.OffLineCameraRenderer;
 import com.hyphenate.easeim.section.base.BaseFragment;
 import com.hyphenate.easeim.section.conference.CallFloatWindow;
 import com.hyphenate.easeim.section.dialog.CompleteDialogFragment;
@@ -92,7 +92,9 @@ public class EaseCallFragment extends BaseFragment {
      * 0：voice call，1：video call
      */
     protected int callType = 0;
-    protected CameraRenderer mCameraRenderer;
+
+    //相机相关配置
+    protected OffLineCameraRenderer mOffLineCameraRenderer;
 
     HandlerThread callHandlerThread = new HandlerThread("callHandlerThread");
     { callHandlerThread.start(); }
@@ -308,8 +310,8 @@ public class EaseCallFragment extends BaseFragment {
                                 EMClient.getInstance().callManager().getCallOptions().
                                         setLocalVideoViewMirror(EMMirror.ON);
                             }
-                            if (mCameraRenderer != null) {
-                                mCameraRenderer.onResume();
+                            if (mOffLineCameraRenderer != null) {
+                                mOffLineCameraRenderer.openCamera();
                             }
                             EMClient.getInstance().callManager().makeVideoCall(username, "", record, merge);
                         } else {
@@ -342,8 +344,8 @@ public class EaseCallFragment extends BaseFragment {
                     if (ringtone != null)
                         ringtone.stop();
                     if (isInComingCall) {
-                        if (mCameraRenderer != null) {
-                            mCameraRenderer.onResume();
+                        if (mOffLineCameraRenderer != null) {
+                            mOffLineCameraRenderer.openCamera();
                         }
                         try {
                             EMClient.getInstance().callManager().answerCall();
@@ -390,8 +392,8 @@ public class EaseCallFragment extends BaseFragment {
                     if (soundPool != null)
                         soundPool.stop(streamID);
                     EMLog.d("EMCallManager", "soundPool stop MSG_CALL_END");
-                    if (mCameraRenderer != null) {
-                        mCameraRenderer.onPause();
+                    if (mOffLineCameraRenderer != null) {
+                        mOffLineCameraRenderer.closeCamera();
                     }
                     try {
                         EMClient.getInstance().callManager().endCall();
@@ -402,8 +404,8 @@ public class EaseCallFragment extends BaseFragment {
 
                     break;
                 case MSG_CALL_RELEASE_HANDLER:
-                    if (mCameraRenderer != null) {
-                        mCameraRenderer.onPause();
+                    if (mOffLineCameraRenderer != null) {
+                        mOffLineCameraRenderer.closeCamera();
                     }
                     try {
                         EMClient.getInstance().callManager().endCall();
@@ -419,8 +421,8 @@ public class EaseCallFragment extends BaseFragment {
                     break;
                 case MSG_CALL_SWITCH_CAMERA:
                     EMClient.getInstance().callManager().switchCamera();
-                    if (mCameraRenderer != null) {
-                        mCameraRenderer.switchCamera();
+                    if (mOffLineCameraRenderer != null) {
+                        mOffLineCameraRenderer.switchCamera();
                     }
                     break;
                 default:
