@@ -8,6 +8,7 @@ import android.widget.Button;
 
 import com.hyphenate.easeim.DemoApplication;
 import com.hyphenate.easeim.R;
+import com.hyphenate.easeim.faceunity.utils.PreferenceUtil;
 import com.hyphenate.easeim.section.login.activity.SplashActivity;
 
 import androidx.annotation.Nullable;

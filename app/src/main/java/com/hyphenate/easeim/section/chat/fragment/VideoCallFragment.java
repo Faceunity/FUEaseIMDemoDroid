@@ -1,13 +1,8 @@
 package com.hyphenate.easeim.section.chat.fragment;
 
-import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
-import android.hardware.Sensor;
-import android.hardware.SensorEvent;
-import android.hardware.SensorEventListener;
-import android.hardware.SensorManager;
 import android.media.AudioManager;
 import android.media.RingtoneManager;
 import android.media.SoundPool;
@@ -36,7 +31,10 @@ import androidx.annotation.Nullable;
 import androidx.constraintlayout.widget.ConstraintLayout;
 import androidx.constraintlayout.widget.Group;
 
+import com.faceunity.core.enumeration.FUAIProcessorEnum;
 import com.faceunity.nama.FURenderer;
+import com.faceunity.nama.data.FaceUnityDataFactory;
+import com.faceunity.nama.listener.FURendererListener;
 import com.faceunity.nama.ui.FaceUnityView;
 import com.hyphenate.chat.EMCallSession;
 import com.hyphenate.chat.EMCallStateChangeListener;
@@ -49,8 +47,8 @@ import com.hyphenate.easeim.DemoApplication;
 import com.hyphenate.easeim.R;
 import com.hyphenate.easeim.common.utils.PreferenceManager;
 import com.hyphenate.easeim.common.utils.ViewScrollHelper;
-import com.hyphenate.easeim.faceunity.CameraRenderer;
-import com.hyphenate.easeim.faceunity.PreferenceUtil;
+import com.hyphenate.easeim.faceunity.OffLineCameraRenderer;
+import com.hyphenate.easeim.faceunity.utils.PreferenceUtil;
 import com.hyphenate.easeim.section.conference.CallFloatWindow;
 import com.hyphenate.easeui.EaseUI;
 import com.hyphenate.easeui.manager.PhoneStateManager;
@@ -63,7 +61,7 @@ import java.io.InputStream;
 import java.util.Locale;
 import java.util.UUID;
 
-public class VideoCallFragment extends EaseCallFragment implements View.OnClickListener, SensorEventListener {
+public class VideoCallFragment extends EaseCallFragment implements View.OnClickListener {
     private TextView callStateTextView;
     private Group comingBtnContainer;
     private ImageButton refuseBtn;
@@ -98,37 +96,49 @@ public class VideoCallFragment extends EaseCallFragment implements View.OnClickL
 
     private Handler uiHandler;
 
-    private Button toggleVideoBtn;
     private Bitmap watermarkbitmap;
     private EMWaterMarkOption watermark;
-    private boolean isNewIntent;
     private boolean isPauseVideo;//是否暂停视频推流
-    private SensorManager sensorManager;
-
+    private FaceUnityView mFaceUnityView;
+    private FaceUnityDataFactory mFaceUnityDataFactory;
+    private boolean isOpenFu;
 
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
-        boolean isOpenFu = PreferenceUtil.ON.equals(PreferenceUtil.getString(mContext, PreferenceUtil.KEY_FACEUNITY_ISON));
+        isOpenFu = PreferenceUtil.ON.equals(PreferenceUtil.getString(mContext, PreferenceUtil.KEY_FACEUNITY_ISON));
         // setup camera renderer
         if (isOpenFu) {
-            mCameraRenderer = new CameraRenderer(mContext, new FURenderer.OnDebugListener() {
+            //基本参数初始化
+            mFaceUnityDataFactory = new FaceUnityDataFactory(-1);
+            mOffLineCameraRenderer = new OffLineCameraRenderer(getActivity(), mFaceUnityDataFactory);
+            FURenderer fuRenderer = mOffLineCameraRenderer.getFURenderer();
+            fuRenderer.setMarkFPSEnable(true);
+            fuRenderer.bindListener(new FURendererListener() {
+                @Override
+                public void onPrepare() {
+
+                }
+
+                @Override
+                public void onTrackStatusChanged(FUAIProcessorEnum type, int status) {
+
+                }
+
                 @Override
                 public void onFpsChanged(double fps, double callTime) {
+                    Log.d(TAG,"fps: " + fps + ",callTime: " + callTime);
                     final String FPS = String.format(Locale.getDefault(), "%.2f", fps);
-                    Log.e(TAG, "onFpsChanged: FPS " + FPS + " callTime " + String.format(Locale.getDefault(), "%.2f", callTime));
-                    runOnUiThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            if (mTvFps != null) {
-                                mTvFps.setText("FPS: " + FPS);
-                            }
-                        }
-                    });
+                    runOnUiThread(()-> mTvFps.setText("fps : " + FPS));
+                }
+
+                @Override
+                public void onRelease() {
+
                 }
             });
         }
         super.onCreate(savedInstanceState);
-        if(savedInstanceState != null) {
+        if (savedInstanceState != null) {
             mContext.finish();
         }
         EMClient.getInstance().callManager().getCallOptions().setVideoResolution(480, 360);
@@ -146,7 +156,7 @@ public class VideoCallFragment extends EaseCallFragment implements View.OnClickL
     protected void initArguments() {
         msgid = UUID.randomUUID().toString();
         Bundle bundle = getArguments();
-        if(bundle != null) {
+        if (bundle != null) {
             isInComingCall = bundle.getBoolean("isComingCall", false);
             username = bundle.getString("username");
         }
@@ -158,12 +168,12 @@ public class VideoCallFragment extends EaseCallFragment implements View.OnClickL
         callType = 1;
 
         callStateTextView = (TextView) findViewById(R.id.tv_call_state);
-        comingBtnContainer =  findViewById(R.id.ll_coming_call);
-        rootContainer =  findViewById(R.id.root_layout);
+        comingBtnContainer = findViewById(R.id.ll_coming_call);
+        rootContainer = findViewById(R.id.root_layout);
         refuseBtn = findViewById(R.id.btn_refuse_call);
         answerBtn = findViewById(R.id.btn_answer_call);
         hangupBtn = findViewById(R.id.btn_hangup_call);
-        closeBtn = (ImageButton)findViewById(R.id.btn_close_call);
+        closeBtn = (ImageButton) findViewById(R.id.btn_close_call);
         muteImage = (ImageView) findViewById(R.id.iv_mute);
         handsFreeImage = (ImageView) findViewById(R.id.iv_handsfree);
         callStateTextView = (TextView) findViewById(R.id.tv_call_state);
@@ -181,7 +191,6 @@ public class VideoCallFragment extends EaseCallFragment implements View.OnClickL
         groupHangUp = findViewById(R.id.group_hang_up);
         groupUseInfo = findViewById(R.id.group_use_info);
         groupOngoingSettings = findViewById(R.id.group_ongoing_settings);
-
         nickTextView.setText(username);
 
         localSurface.setOnClickListener(this);
@@ -190,17 +199,11 @@ public class VideoCallFragment extends EaseCallFragment implements View.OnClickL
 
         uiHandler = new Handler();
 
-        FaceUnityView beautyControlView = findViewById(R.id.faceunity_view);
-
-        boolean isOpenFu = PreferenceUtil.ON.equals(PreferenceUtil.getString(mContext, PreferenceUtil.KEY_FACEUNITY_ISON));
+        mFaceUnityView = findViewById(R.id.faceunity_view);
 
         if (isOpenFu) {
-            beautyControlView.setModuleManager(mCameraRenderer.getFURenderer());
-            sensorManager = (SensorManager) mContext.getSystemService(Context.SENSOR_SERVICE);
-            Sensor sensor = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
-            sensorManager.registerListener(this, sensor, SensorManager.SENSOR_DELAY_NORMAL);
-        } else {
-            beautyControlView.setVisibility(View.GONE);
+            mFaceUnityView.setVisibility(View.VISIBLE);
+            mFaceUnityView.bindDataFactory(mFaceUnityDataFactory);
         }
     }
 
@@ -222,7 +225,7 @@ public class VideoCallFragment extends EaseCallFragment implements View.OnClickL
     @Override
     protected void initData() {
         //获取水印图片
-        if(PreferenceManager.getInstance().isWatermarkResolution()) {
+        if (PreferenceManager.getInstance().isWatermarkResolution()) {
             try {
                 InputStream in = this.getResources().getAssets().open("watermark.png");
                 watermarkbitmap = BitmapFactory.decodeStream(in);
@@ -248,7 +251,7 @@ public class VideoCallFragment extends EaseCallFragment implements View.OnClickL
         } else { // incoming call
 
             callStateTextView.setText(getString(R.string.em_call_video_request, username));
-            if(EMClient.getInstance().callManager().getCallState() == EMCallStateChangeListener.CallState.IDLE
+            if (EMClient.getInstance().callManager().getCallState() == EMCallStateChangeListener.CallState.IDLE
                     || EMClient.getInstance().callManager().getCallState() == EMCallStateChangeListener.CallState.DISCONNECTED) {
                 // the call has ended
                 mContext.finish();
@@ -279,7 +282,11 @@ public class VideoCallFragment extends EaseCallFragment implements View.OnClickL
     @Override
     public void onResume() {
         super.onResume();
-        if(isInCalling && isPauseVideo){
+        if (isOpenFu && mFaceUnityDataFactory != null) {
+            mOffLineCameraRenderer.onResume();
+            mFaceUnityDataFactory.bindCurrentRenderer();
+        }
+        if (isInCalling && isPauseVideo) {
             try {
                 EMClient.getInstance().callManager().resumeVideoTransfer();
                 isPauseVideo = false;
@@ -293,9 +300,9 @@ public class VideoCallFragment extends EaseCallFragment implements View.OnClickL
      * 按下home键，或者其他操作返回桌面的，会执行这个方法
      */
     public void onUserLeaveHint() {
-        if(isInCalling){
+        if (isInCalling) {
             //如果没有悬浮框权限，则暂停视频推流
-            if(!isHaveOverlayPermission()) {
+            if (!isHaveOverlayPermission()) {
                 try {
                     EMClient.getInstance().callManager().pauseVideoTransfer();
                     isPauseVideo = true;
@@ -309,8 +316,9 @@ public class VideoCallFragment extends EaseCallFragment implements View.OnClickL
     @Override
     public void onDestroyView() {
         super.onDestroyView();
-        if (sensorManager != null) {
-            sensorManager.unregisterListener(this);
+        if (isOpenFu) {
+            mOffLineCameraRenderer.onPause();
+            mOffLineCameraRenderer.onDestroy();
         }
     }
 
@@ -362,7 +370,7 @@ public class VideoCallFragment extends EaseCallFragment implements View.OnClickL
             callStateTextView.setText(getResources().getString(R.string.hanging_up));
             EMLog.d(TAG, "btn_hangup_call");
             handler.sendEmptyMessage(MSG_CALL_END);
-        }else if(id == R.id.btn_close_call) {
+        } else if (id == R.id.btn_close_call) {
             floatState = surfaceState;
             showFloatWindow();
         } else if (id == R.id.iv_mute) { // mute
@@ -524,7 +532,7 @@ public class VideoCallFragment extends EaseCallFragment implements View.OnClickL
         EMClient.getInstance().callManager().setSurfaceView(oppositeSurface, localSurface);
     }
 
-    void stopMonitor(){
+    void stopMonitor() {
         monitor = false;
     }
 
@@ -536,7 +544,7 @@ public class VideoCallFragment extends EaseCallFragment implements View.OnClickL
 
             @Override
             public void onCallStateChanged(final CallState callState, final CallError error) {
-                if(isActivityDisable()) {
+                if (isActivityDisable()) {
                     return;
                 }
                 mContext.runOnUiThread(() -> {
@@ -553,15 +561,15 @@ public class VideoCallFragment extends EaseCallFragment implements View.OnClickL
 
                             String callId = EMClient.getInstance().callManager().getCurrentCallSession().getCallId();
 
-                            if(!EMClient.getInstance().callManager().getCurrentCallSession().getIscaller()){
+                            if (!EMClient.getInstance().callManager().getCurrentCallSession().getIscaller()) {
                                 //推流时设置水印图片
-                                if(PreferenceManager.getInstance().isWatermarkResolution()){
+                                if (PreferenceManager.getInstance().isWatermarkResolution()) {
                                     EMClient.getInstance().callManager().setWaterMark(watermark);
 
                                     //开启水印时候本地不开启镜像显示
                                     EMClient.getInstance().callManager().getCallOptions().
                                             setLocalVideoViewMirror(EMMirror.OFF);
-                                }else{
+                                } else {
                                     EMClient.getInstance().callManager().getCallOptions().
                                             setLocalVideoViewMirror(EMMirror.ON);
                                 }
@@ -729,7 +737,7 @@ public class VideoCallFragment extends EaseCallFragment implements View.OnClickL
     /**
      * for debug & testing, you can remove this when release
      */
-    void startMonitor(){
+    void startMonitor() {
         monitor = true;
         EMCallSession callSession = EMClient.getInstance().callManager().getCurrentCallSession();
         final boolean isRecord = callSession.isRecordOnServer();
@@ -740,19 +748,19 @@ public class VideoCallFragment extends EaseCallFragment implements View.OnClickL
             EMLog.e(TAG, "server record id: " + serverRecordId);
         }
         String recordString = " record? " + isRecord + " id: " + serverRecordId;
-        if(isRecord) {
+        if (isRecord) {
             recordString += " id: " + serverRecordId;
         }
         String recordStr = recordString;
         new Thread(new Runnable() {
             public void run() {
-                while(monitor){
-                    if(isActivityDisable()) {
+                while (monitor) {
+                    if (isActivityDisable()) {
                         return;
                     }
                     mContext.runOnUiThread(new Runnable() {
                         public void run() {
-                            monitorTextView.setText("WidthxHeight："+callHelper.getVideoWidth()+"x"+callHelper.getVideoHeight()
+                            monitorTextView.setText("WidthxHeight：" + callHelper.getVideoWidth() + "x" + callHelper.getVideoHeight()
                                     + "\nDelay：" + callHelper.getVideoLatency()
                                     + "\nFramerate：" + callHelper.getVideoFrameRate()
                                     + "\nLost：" + callHelper.getVideoLostRate()
@@ -760,7 +768,7 @@ public class VideoCallFragment extends EaseCallFragment implements View.OnClickL
                                     + "\nRemoteBitrate：" + callHelper.getRemoteBitrate()
                                     + "\n" + recordStr);
 
-                            ((TextView)findViewById(R.id.tv_is_p2p)).setText(EMClient.getInstance().callManager().isDirectCall()
+                            ((TextView) findViewById(R.id.tv_is_p2p)).setText(EMClient.getInstance().callManager().isDirectCall()
                                     ? R.string.direct_call : R.string.relay_call);
                         }
                     });
@@ -818,10 +826,10 @@ public class VideoCallFragment extends EaseCallFragment implements View.OnClickL
     };
 
     public void onNewIntent(Intent intent) {
-        if(surfaceState == 0 ){
-            EMClient.getInstance().callManager().setSurfaceView(localSurface,oppositeSurface);
-        }else{
-            EMClient.getInstance().callManager().setSurfaceView(oppositeSurface,localSurface);
+        if (surfaceState == 0) {
+            EMClient.getInstance().callManager().setSurfaceView(localSurface, oppositeSurface);
+        } else {
+            EMClient.getInstance().callManager().setSurfaceView(oppositeSurface, localSurface);
         }
 
         // 防止activity在后台被start至前台导致window还存在
@@ -830,6 +838,7 @@ public class VideoCallFragment extends EaseCallFragment implements View.OnClickL
 
     /**
      * 检查是否有悬浮框权限
+     *
      * @return
      */
     private boolean isHaveOverlayPermission() {
@@ -837,25 +846,5 @@ public class VideoCallFragment extends EaseCallFragment implements View.OnClickL
             return Settings.canDrawOverlays(mContext);
         }
         return true;
-    }
-
-    @Override
-    public void onSensorChanged(SensorEvent event) {
-        if (event.sensor.getType() == Sensor.TYPE_ACCELEROMETER) {
-            float x = event.values[0];
-            float y = event.values[1];
-            if (Math.abs(x) > 3 || Math.abs(y) > 3) {
-                if (Math.abs(x) > Math.abs(y)) {
-                    mCameraRenderer.getFURenderer().onDeviceOrientationChanged(x > 0 ? 0 : 180);
-                } else {
-                    mCameraRenderer.getFURenderer().onDeviceOrientationChanged(y > 0 ? 90 : 270);
-                }
-            }
-        }
-    }
-
-    @Override
-    public void onAccuracyChanged(Sensor sensor, int accuracy) {
-
     }
 }

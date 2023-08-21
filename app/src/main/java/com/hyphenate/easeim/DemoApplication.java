@@ -9,6 +9,8 @@ import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatDelegate;
 import androidx.multidex.MultiDex;
 
+import com.faceunity.nama.FUConfig;
+import com.faceunity.nama.utils.FuDeviceUtils;
 import com.hyphenate.easeim.common.interfaceOrImplement.UserActivityLifecycleCallbacks;
 import com.hyphenate.easeim.common.utils.PreferenceManager;
 import com.hyphenate.util.EMLog;
@@ -35,6 +37,7 @@ public class DemoApplication extends Application implements Thread.UncaughtExcep
         super.onCreate();
         instance = this;
         initThrowableHandler();
+        FUConfig.DEVICE_LEVEL = FuDeviceUtils.judgeDeviceLevelGPU();
         initHx();
         registerActivityLifecycleCallbacks();
         closeAndroidPDialog();

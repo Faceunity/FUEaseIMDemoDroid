@@ -59,7 +59,7 @@ android {
     flavorDimensions "min"
     productFlavors {
         dev {
-            minSdkVersion 21
+            minSdkVersion 19
             dimension "min"
         }
 
